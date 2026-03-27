@@ -208,6 +208,15 @@ button:hover {
     color: #666;
 }
 
+.out-of-gamut {
+    color: #e65100;
+    font-style: italic;
+}
+
+#active-color-preview.out-of-gamut {
+    border: 2px dashed #e65100;
+}
+
 #magnifier {
     position: fixed;
     width: 120px;

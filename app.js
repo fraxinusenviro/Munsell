@@ -2,6 +2,10 @@ import * as munsell from 'https://cdn.jsdelivr.net/npm/munsell/+esm';
 
 const canvas = document.getElementById('image-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+// Offscreen canvas used exclusively for sampling — never has crosshair or markers painted on it
+const sampleCanvas = document.createElement('canvas');
+const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
 const magnifier = document.getElementById('magnifier');
 const fileInput = document.getElementById('fileInput');
 const fileInputGallery = document.getElementById('fileInputGallery');
@@ -109,6 +113,8 @@ async function onFileChange(e) {
             const scale = Math.min(800 / img.width, 1);
             canvas.width = img.width * scale;
             canvas.height = img.height * scale;
+            sampleCanvas.width = canvas.width;
+            sampleCanvas.height = canvas.height;
 
             baseImage = img;
             redrawCanvas();
@@ -129,6 +135,7 @@ async function onFileChange(e) {
 function drawPixelated() {
     if (!smoothingEnabled) {
         ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+        sampleCtx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
         return;
     }
 
@@ -142,11 +149,15 @@ function drawPixelated() {
     offCtx.drawImage(baseImage, 0, 0, bw, bh);
 
     const data = offCtx.getImageData(0, 0, bw, bh).data;
+    sampleCtx.clearRect(0, 0, sampleCanvas.width, sampleCanvas.height);
     for (let row = 0; row < bh; row++) {
         for (let col = 0; col < bw; col++) {
             const i = (row * bw + col) * 4;
-            ctx.fillStyle = `rgb(${data[i]},${data[i + 1]},${data[i + 2]})`;
+            const color = `rgb(${data[i]},${data[i + 1]},${data[i + 2]})`;
+            ctx.fillStyle = color;
             ctx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+            sampleCtx.fillStyle = color;
+            sampleCtx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
         }
     }
 }
@@ -216,7 +227,7 @@ function drawSampleMarkers() {
         // Munsell label below circle
         ctx.font = '10px sans-serif';
         ctx.textBaseline = 'top';
-        ctx.fillText(s.munsell, s.x, s.y + r + 4);
+        ctx.fillText(s.outOfGamut ? '⚠ OOG' : s.munsell, s.x, s.y + r + 4);
 
         ctx.restore();
     });
@@ -248,7 +259,17 @@ function updateSelectionAt(x, y, clientX, clientY) {
     const rgbText = `rgb(${avgPixel[0]}, ${avgPixel[1]}, ${avgPixel[2]})`;
     activeColorPreview.style.background = rgbText;
     rgbValue.innerText = `${rgbText} · 1px`;
-    munsellValue.innerText = getNearestMunsell(avgPixel[0], avgPixel[1], avgPixel[2]);
+
+    const result = getNearestMunsell(avgPixel[0], avgPixel[1], avgPixel[2]);
+    if (result.outOfGamut) {
+        munsellValue.textContent = '⚠ Out of gamut';
+        munsellValue.classList.add('out-of-gamut');
+        activeColorPreview.classList.add('out-of-gamut');
+    } else {
+        munsellValue.textContent = result.value;
+        munsellValue.classList.remove('out-of-gamut');
+        activeColorPreview.classList.remove('out-of-gamut');
+    }
 
     magnifier.style.display = 'block';
     magnifier.style.left = `${clientX - 60}px`;
@@ -265,7 +286,7 @@ function getAveragePixel(centerX, centerY, radius) {
 
     const width = x1 - x0 + 1;
     const height = y1 - y0 + 1;
-    const data = ctx.getImageData(x0, y0, width, height).data;
+    const data = sampleCtx.getImageData(x0, y0, width, height).data;
 
     let r = 0;
     let g = 0;
@@ -287,9 +308,10 @@ function getAveragePixel(centerX, centerY, radius) {
 
 function getNearestMunsell(r, g, b) {
     try {
-        return munsell.rgb255ToMunsell([r, g, b]);
+        const value = munsell.rgb255ToMunsell([r, g, b]);
+        return { value, outOfGamut: false };
     } catch {
-        return 'Unknown (Manual lookup required)';
+        return { value: null, outOfGamut: true };
     }
 }
 
@@ -300,7 +322,8 @@ function saveSample() {
     }
 
     const type = featureType.value;
-    const munsellName = munsellValue.innerText;
+    const outOfGamut = munsellValue.classList.contains('out-of-gamut');
+    const munsellName = outOfGamut ? null : munsellValue.textContent;
     const percent = percentValue.value || 0;
 
     const sample = {
@@ -310,6 +333,7 @@ function saveSample() {
         y: crosshair.y,
         type,
         munsell: munsellName,
+        outOfGamut,
         percent,
         rgb: `rgb(${currentRGB.join(',')})`
     };
@@ -323,10 +347,13 @@ function updateTable() {
     tableBody.innerHTML = '';
 
     samples.forEach((sample) => {
+        const munsellCell = sample.outOfGamut
+            ? `<span class="out-of-gamut">⚠ Out of gamut</span>`
+            : `${sample.munsell}`;
         const row = `<tr>
             <td>${sample.number}</td>
             <td>${sample.type}</td>
-            <td><span style="display:inline-block;width:12px;height:12px;background:${sample.rgb};margin-right:5px"></span>${sample.munsell}</td>
+            <td><span style="display:inline-block;width:12px;height:12px;background:${sample.rgb};border-radius:2px;margin-right:5px;${sample.outOfGamut ? 'border:1.5px dashed #e65100;' : ''}"></span>${munsellCell}</td>
             <td>${sample.percent}%</td>
             <td><button class="delete-btn" onclick="deleteSample(${sample.id})">✕</button></td>
         </tr>`;
