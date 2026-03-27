@@ -4,7 +4,9 @@ const canvas = document.getElementById('image-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const magnifier = document.getElementById('magnifier');
 const fileInput = document.getElementById('fileInput');
+const fileInputGallery = document.getElementById('fileInputGallery');
 const openFileBtn = document.getElementById('open-file-btn');
+const openGalleryBtn = document.getElementById('open-gallery-btn');
 
 const activeColorPreview = document.getElementById('active-color-preview');
 const rgbValue = document.getElementById('rgb-val');
@@ -20,17 +22,33 @@ const projectNameInput = document.getElementById('project-name');
 const gpsDisplay = document.getElementById('gps-display');
 const dateDisplay = document.getElementById('date-display');
 
+const pixelSlider = document.getElementById('pixel-slider');
+const pixelLabel = document.getElementById('pixel-label');
+
 let samples = [];
 let currentRGB = null;
 let metadata = { lat: '', lng: '', date: '' };
 let baseImage = null;
 let crosshair = { x: null, y: null };
+let pixelSize = 1;
 
-const LOUPE_SAMPLE_RADIUS = 3;
+const LOUPE_SAMPLE_RADIUS = 1;
 const LOUPE_ZOOM = 4;
 
 openFileBtn.addEventListener('click', () => fileInput.click());
+openGalleryBtn.addEventListener('click', () => fileInputGallery.click());
 fileInput.addEventListener('change', onFileChange);
+fileInputGallery.addEventListener('change', onFileChange);
+
+pixelSlider.addEventListener('input', () => {
+    pixelSize = parseInt(pixelSlider.value, 10);
+    pixelLabel.textContent = pixelSize <= 1 ? 'Off' : `${pixelSize}x`;
+    redrawCanvas();
+    if (crosshair.x !== null) {
+        const rect = canvas.getBoundingClientRect();
+        updateSelectionAt(crosshair.x, crosshair.y, rect.left + crosshair.x, rect.top + crosshair.y);
+    }
+});
 
 canvas.addEventListener('mousemove', handleSampling);
 canvas.addEventListener('mousedown', handleSampling);
@@ -95,13 +113,32 @@ async function onFileChange(e) {
     reader.readAsDataURL(file);
 }
 
+function drawPixelated() {
+    if (pixelSize <= 1) {
+        ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+        return;
+    }
+    const w = Math.max(1, Math.floor(canvas.width / pixelSize));
+    const h = Math.max(1, Math.floor(canvas.height / pixelSize));
+    const offscreen = document.createElement('canvas');
+    offscreen.width = w;
+    offscreen.height = h;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(baseImage, 0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+}
+
 function redrawCanvas() {
     if (!baseImage) {
         return;
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+    drawPixelated();
+
+    drawSampleMarkers();
 
     if (crosshair.x !== null && crosshair.y !== null) {
         drawCrosshair(crosshair.x, crosshair.y);
@@ -124,6 +161,44 @@ function drawCrosshair(x, y) {
     ctx.arc(x, y, 8, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+}
+
+function drawSampleMarkers() {
+    const r = Math.max(12, LOUPE_SAMPLE_RADIUS * 2 + 8);
+    samples.forEach((s) => {
+        ctx.save();
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 3;
+
+        // outer dark ring for contrast
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // inner white ring
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // sample number centered in circle
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(s.number), s.x, s.y);
+
+        // Munsell label below circle
+        ctx.font = '10px sans-serif';
+        ctx.textBaseline = 'top';
+        ctx.fillText(s.munsell, s.x, s.y + r + 4);
+
+        ctx.restore();
+    });
 }
 
 function handleSampling(e) {
@@ -209,6 +284,9 @@ function saveSample() {
 
     const sample = {
         id: Date.now(),
+        number: samples.length + 1,
+        x: crosshair.x,
+        y: crosshair.y,
         type,
         munsell: munsellName,
         percent,
@@ -217,6 +295,7 @@ function saveSample() {
 
     samples.push(sample);
     updateTable();
+    redrawCanvas();
 }
 
 function updateTable() {
@@ -224,6 +303,7 @@ function updateTable() {
 
     samples.forEach((sample) => {
         const row = `<tr>
+            <td>${sample.number}</td>
             <td>${sample.type}</td>
             <td><span style="display:inline-block;width:12px;height:12px;background:${sample.rgb};margin-right:5px"></span>${sample.munsell}</td>
             <td>${sample.percent}%</td>
@@ -235,7 +315,9 @@ function updateTable() {
 
 function deleteSample(id) {
     samples = samples.filter((sample) => sample.id !== id);
+    samples = samples.map((s, i) => ({ ...s, number: i + 1 }));
     updateTable();
+    redrawCanvas();
 }
 
 async function generateReport() {
@@ -267,7 +349,7 @@ async function generateReport() {
 
     let yOffset = 50;
     samples.forEach((sample) => {
-        tempCtx.fillText(`${sample.type}: ${sample.munsell} (${sample.percent}%)`, 20, yOffset);
+        tempCtx.fillText(`${sample.number}. ${sample.type}: ${sample.munsell} (${sample.percent}%)`, 20, yOffset);
         yOffset += 20;
     });
 
