@@ -24,15 +24,17 @@ const dateDisplay = document.getElementById('date-display');
 
 const pixelSlider = document.getElementById('pixel-slider');
 const pixelLabel = document.getElementById('pixel-label');
+const smoothToggle = document.getElementById('smooth-toggle');
 
 let samples = [];
 let currentRGB = null;
 let metadata = { lat: '', lng: '', date: '' };
 let baseImage = null;
 let crosshair = { x: null, y: null };
-let pixelSize = 1;
+let pixelSize = 6;
+let smoothingEnabled = false;
 
-const LOUPE_SAMPLE_RADIUS = 1;
+const LOUPE_SAMPLE_RADIUS = 0;
 const LOUPE_ZOOM = 4;
 
 openFileBtn.addEventListener('click', () => fileInput.click());
@@ -40,9 +42,20 @@ openGalleryBtn.addEventListener('click', () => fileInputGallery.click());
 fileInput.addEventListener('change', onFileChange);
 fileInputGallery.addEventListener('change', onFileChange);
 
+smoothToggle.addEventListener('change', () => {
+    smoothingEnabled = smoothToggle.checked;
+    pixelSlider.disabled = !smoothingEnabled;
+    pixelLabel.textContent = smoothingEnabled ? `${pixelSize}x` : 'Off';
+    redrawCanvas();
+    if (crosshair.x !== null) {
+        const rect = canvas.getBoundingClientRect();
+        updateSelectionAt(crosshair.x, crosshair.y, rect.left + crosshair.x, rect.top + crosshair.y);
+    }
+});
+
 pixelSlider.addEventListener('input', () => {
     pixelSize = parseInt(pixelSlider.value, 10);
-    pixelLabel.textContent = pixelSize <= 1 ? 'Off' : `${pixelSize}x`;
+    pixelLabel.textContent = `${pixelSize}x`;
     redrawCanvas();
     if (crosshair.x !== null) {
         const rect = canvas.getBoundingClientRect();
@@ -114,20 +127,28 @@ async function onFileChange(e) {
 }
 
 function drawPixelated() {
-    if (pixelSize <= 1) {
+    if (!smoothingEnabled) {
         ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
         return;
     }
-    const w = Math.max(1, Math.floor(canvas.width / pixelSize));
-    const h = Math.max(1, Math.floor(canvas.height / pixelSize));
+
+    // Downscale to block resolution (bilinear avg), then paint each block as a solid rect
+    const bw = Math.max(1, Math.floor(canvas.width / pixelSize));
+    const bh = Math.max(1, Math.floor(canvas.height / pixelSize));
     const offscreen = document.createElement('canvas');
-    offscreen.width = w;
-    offscreen.height = h;
+    offscreen.width = bw;
+    offscreen.height = bh;
     const offCtx = offscreen.getContext('2d');
-    offCtx.drawImage(baseImage, 0, 0, w, h);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
+    offCtx.drawImage(baseImage, 0, 0, bw, bh);
+
+    const data = offCtx.getImageData(0, 0, bw, bh).data;
+    for (let row = 0; row < bh; row++) {
+        for (let col = 0; col < bw; col++) {
+            const i = (row * bw + col) * 4;
+            ctx.fillStyle = `rgb(${data[i]},${data[i + 1]},${data[i + 2]})`;
+            ctx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+        }
+    }
 }
 
 function redrawCanvas() {
@@ -226,7 +247,7 @@ function updateSelectionAt(x, y, clientX, clientY) {
 
     const rgbText = `rgb(${avgPixel[0]}, ${avgPixel[1]}, ${avgPixel[2]})`;
     activeColorPreview.style.background = rgbText;
-    rgbValue.innerText = `${rgbText} · avg ${(LOUPE_SAMPLE_RADIUS * 2 + 1)}x${(LOUPE_SAMPLE_RADIUS * 2 + 1)}`;
+    rgbValue.innerText = `${rgbText} · 1px`;
     munsellValue.innerText = getNearestMunsell(avgPixel[0], avgPixel[1], avgPixel[2]);
 
     magnifier.style.display = 'block';
