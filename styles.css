@@ -153,6 +153,39 @@ button:hover {
     color: #666;
 }
 
+.upload-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 0;
+}
+
+.upload-buttons button {
+    flex: 1;
+    max-width: 200px;
+}
+
+.smoothing-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 0.9em;
+}
+
+.smoothing-control label {
+    white-space: nowrap;
+    min-width: 130px;
+}
+
+.smoothing-control input[type="range"] {
+    flex: 1;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
 #magnifier {
     position: fixed;
     width: 120px;
