@@ -1,4 +1,21 @@
-import * as munsell from 'https://cdn.jsdelivr.net/npm/munsell/+esm';
+import * as munsell from 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/+esm';
+
+let libraryOk = false;
+
+(function verifyMunsellLibrary() {
+    try {
+        const testResult = munsell.rgb255ToMunsell([120, 85, 55]);
+        const reverseOk = typeof munsell.munsellToRgb255 === 'function';
+        console.info('[munsell] Library OK. Test result:', testResult);
+        console.info('[munsell] Reverse direction (munsellToRgb255):', reverseOk ? 'available' : 'NOT available');
+        console.info('[munsell] Exported API:', Object.keys(munsell).join(', '));
+        libraryOk = true;
+    } catch (e) {
+        console.error('[munsell] Library failed to load or rgb255ToMunsell is missing:', e);
+        const banner = document.getElementById('lib-warning');
+        if (banner) banner.style.display = 'block';
+    }
+})();
 
 const canvas = document.getElementById('image-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -261,7 +278,11 @@ function updateSelectionAt(x, y, clientX, clientY) {
     rgbValue.innerText = `${rgbText} · 1px`;
 
     const result = getNearestMunsell(avgPixel[0], avgPixel[1], avgPixel[2]);
-    if (result.outOfGamut) {
+    if (result.libError) {
+        munsellValue.textContent = '⚠ Library not loaded';
+        munsellValue.classList.add('out-of-gamut');
+        activeColorPreview.classList.remove('out-of-gamut');
+    } else if (result.outOfGamut) {
         munsellValue.textContent = '⚠ Out of gamut';
         munsellValue.classList.add('out-of-gamut');
         activeColorPreview.classList.add('out-of-gamut');
@@ -307,11 +328,14 @@ function getAveragePixel(centerX, centerY, radius) {
 }
 
 function getNearestMunsell(r, g, b) {
+    if (!libraryOk) {
+        return { value: null, outOfGamut: false, libError: true };
+    }
     try {
         const value = munsell.rgb255ToMunsell([r, g, b]);
-        return { value, outOfGamut: false };
+        return { value, outOfGamut: false, libError: false };
     } catch {
-        return { value: null, outOfGamut: true };
+        return { value: null, outOfGamut: true, libError: false };
     }
 }
 
@@ -322,8 +346,9 @@ function saveSample() {
     }
 
     const type = featureType.value;
-    const outOfGamut = munsellValue.classList.contains('out-of-gamut');
-    const munsellName = outOfGamut ? null : munsellValue.textContent;
+    const libError = munsellValue.textContent === '⚠ Library not loaded';
+    const outOfGamut = !libError && munsellValue.classList.contains('out-of-gamut');
+    const munsellName = (outOfGamut || libError) ? null : munsellValue.textContent;
     const percent = percentValue.value || 0;
 
     const sample = {

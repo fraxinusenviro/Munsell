@@ -208,6 +208,16 @@ button:hover {
     color: #666;
 }
 
+.lib-warning {
+    background: #fff3e0;
+    border: 1px solid #e65100;
+    color: #bf360c;
+    padding: 10px 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+}
+
 .out-of-gamut {
     color: #e65100;
     font-style: italic;
