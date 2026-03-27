@@ -4,60 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SoilColor - Munsell Estimator</title>
-    <!-- External Libraries -->
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.12.0/dist/exif-reader.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <style>
-        :root { --primary: #5d4037; --secondary: #8d6e63; --light: #efebe9; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--light); color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { max-width: 800px; width: 100%; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: var(--primary); text-align: center; margin-top: 0; }
-        
-        .upload-section { margin-bottom: 20px; text-align: center; }
-        #image-canvas { max-width: 100%; height: auto; border: 2px solid var(--secondary); border-radius: 8px; cursor: crosshair; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-        
-        .sampler-box { border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 20px; background: #fafafa; }
-        .color-preview { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: inline-block; vertical-align: middle; margin-right: 10px; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
-        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background: var(--primary); color: white; }
-        .delete-btn { color: #d32f2f; cursor: pointer; border: none; background: none; font-weight: bold; }
-
-        input, select, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; }
-        button { background: var(--primary); color: white; border: none; cursor: pointer; transition: opacity 0.2s; }
-        button:hover { opacity: 0.9; }
-        .export-btn { background: #2e7d32; width: 100%; margin-top: 20px; font-weight: bold; padding: 15px; }
-
-        .meta-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-        .full-width { grid-column: span 2; }
-        
-        #magnifier {
-            position: absolute; width: 100px; height: 100px; border: 3px solid #fff; border-radius: 50%;
-            pointer-events: none; display: none; box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 100;
-            background-repeat: no-repeat;
-        }
-    </style>
 </head>
 <body>
-
 <div class="container">
     <h1>SoilColor Munsell App</h1>
 
-    <!-- Image Interaction Area -->
-    <div class="upload-section" style="position: relative;">
-        <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none">
-        <button onclick="document.getElementById('fileInput').click()">Take Photo or Upload</button>
-        <div style="margin-top: 10px; position: relative;">
+    <div class="upload-section">
+        <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+        <button id="open-file-btn" type="button">Take Photo or Upload</button>
+        <div class="canvas-wrap">
             <canvas id="image-canvas"></canvas>
             <div id="magnifier"></div>
         </div>
     </div>
 
-    <!-- Sampling & Selection -->
     <div class="sampler-box">
-        <div style="display:flex; align-items:center;">
+        <div class="selection-display">
             <div id="active-color-preview" class="color-preview" style="background: #ccc;"></div>
             <div>
                 <strong>Selected:</strong> <span id="rgb-val">None</span><br>
@@ -74,18 +39,16 @@
         </div>
     </div>
 
-    <!-- Metadata Section -->
     <div class="meta-form">
         <input type="text" id="sample-id" placeholder="Sample ID">
         <input type="text" id="site-name" placeholder="Site Name">
         <input type="text" id="project-name" placeholder="Project Name" class="full-width">
-        <div class="full-width" style="font-size: 0.8em; color: #666;">
+        <div class="full-width meta-info">
             <strong>Auto-GPS:</strong> <span id="gps-display">No GPS found in EXIF</span><br>
             <strong>Date:</strong> <span id="date-display">N/A</span>
         </div>
     </div>
 
-    <!-- Results Table -->
     <table id="results-table">
         <thead>
             <tr>
@@ -101,177 +64,6 @@
     <button class="export-btn" onclick="generateReport()">Generate Soil Sample Report (PDF)</button>
 </div>
 
-<script>
-    const canvas = document.getElementById('image-canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const magnifier = document.getElementById('magnifier');
-    let samples = [];
-    let currentRGB = null;
-    let metadata = { lat: '', lng: '', date: '' };
-
-    // --- Munsell Logic ---
-    // A simplified soil color lookup (Standard Soil Hues: 10YR, 7.5YR, 2.5Y, 5YR)
-    // In a production app, this would be a complete CSV or library like munsell.js
-    const soilLookup = [
-        {hvc: '10YR 2/1', rgb: [43, 39, 36]}, {hvc: '10YR 3/2', rgb: [74, 66, 57]},
-        {hvc: '10YR 4/3', rgb: [105, 92, 75]}, {hvc: '10YR 5/4', rgb: [136, 119, 94]},
-        {hvc: '7.5YR 3/2', rgb: [78, 62, 54]}, {hvc: '7.5YR 4/4', rgb: [115, 89, 72]},
-        {hvc: '2.5Y 5/2', rgb: [128, 124, 110]}, {hvc: '5YR 4/6', rgb: [136, 74, 51]},
-        {hvc: 'N 2.5/', rgb: [60, 60, 60]}, {hvc: 'Gley 1 5/10Y', rgb: [100, 120, 115]}
-        // Add more common chips as needed...
-    ];
-
-    function getNearestMunsell(r, g, b) {
-        let minDest = Infinity;
-        let closest = "Unknown (Manual lookup required)";
-        soilLookup.forEach(chip => {
-            const d = Math.sqrt((r-chip.rgb[0])**2 + (g-chip.rgb[1])**2 + (b-chip.rgb[2])**2);
-            if (d < minDest) { minDest = d; closest = chip.hvc; }
-        });
-        return closest;
-    }
-
-    // --- Image Handling ---
-    document.getElementById('fileInput').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // 1. Extract EXIF
-        try {
-            const tags = await ExifReader.load(file);
-            metadata.date = tags['DateTime']?.description || new Date().toLocaleString();
-            if (tags['GPSLatitude'] && tags['GPSLongitude']) {
-                metadata.lat = tags['GPSLatitude'].description;
-                metadata.lng = tags['GPSLongitude'].description;
-                document.getElementById('gps-display').innerText = `${metadata.lat}, ${metadata.lng}`;
-            }
-            document.getElementById('date-display').innerText = metadata.date;
-        } catch (err) { console.log("EXIF Error:", err); }
-
-        // 2. Load to Canvas
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                const scale = Math.min(800 / img.width, 1);
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            };
-            img.src = event.target.result;
-            magnifier.style.backgroundImage = `url(${event.target.result})`;
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // --- Sampling & Magnifier ---
-    canvas.addEventListener('mousemove', handleSampling);
-    canvas.addEventListener('mousedown', handleSampling);
-    canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        handleSampling(e.touches[0]);
-    });
-
-    function handleSampling(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX || e.pageX) - rect.left;
-        const y = (e.clientY || e.pageY) - rect.top;
-
-        if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) {
-            magnifier.style.display = 'none';
-            return;
-        }
-
-        // Color extraction
-        const pixel = ctx.getImageData(x, y, 1, 1).data;
-        currentRGB = [pixel[0], pixel[1], pixel[2]];
-        const hex = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
-        
-        document.getElementById('active-color-preview').style.background = hex;
-        document.getElementById('rgb-val').innerText = hex;
-        document.getElementById('munsell-val').innerText = getNearestMunsell(...currentRGB);
-
-        // Magnifier Update
-        magnifier.style.display = 'block';
-        magnifier.style.left = `${e.clientX - 50}px`;
-        magnifier.style.top = `${e.clientY - 120}px`;
-        const zoom = 4;
-        magnifier.style.backgroundSize = `${canvas.width * zoom}px ${canvas.height * zoom}px`;
-        magnifier.style.backgroundPosition = `-${x * zoom - 50}px -${y * zoom - 50}px`;
-    }
-
-    function saveSample() {
-        if (!currentRGB) return alert("Select a color first!");
-        const type = document.getElementById('feature-type').value;
-        const munsell = document.getElementById('munsell-val').innerText;
-        const percent = document.getElementById('percent-val').value || 0;
-
-        const sample = { id: Date.now(), type, munsell, percent, rgb: `rgb(${currentRGB.join(',')})` };
-        samples.push(sample);
-        updateTable();
-    }
-
-    function updateTable() {
-        const body = document.getElementById('table-body');
-        body.innerHTML = '';
-        samples.forEach(s => {
-            const row = `<tr>
-                <td>${s.type}</td>
-                <td><span style="display:inline-block;width:12px;height:12px;background:${s.rgb};margin-right:5px"></span>${s.munsell}</td>
-                <td>${s.percent}%</td>
-                <td><button class="delete-btn" onclick="deleteSample(${s.id})">✕</button></td>
-            </tr>`;
-            body.innerHTML += row;
-        });
-    }
-
-    function deleteSample(id) {
-        samples = samples.filter(s => s.id !== id);
-        updateTable();
-    }
-
-    // --- Export Logic ---
-    async function generateReport() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const sID = document.getElementById('sample-id').value || 'Unnamed_Sample';
-
-        doc.setFontSize(22);
-        doc.text("Soil Color Analysis Report", 20, 20);
-        
-        doc.setFontSize(12);
-        doc.text(`Project: ${document.getElementById('project-name').value}`, 20, 35);
-        doc.text(`Site: ${document.getElementById('site-name').value}`, 20, 42);
-        doc.text(`Sample ID: ${sID}`, 20, 49);
-        doc.text(`Location: ${metadata.lat}, ${metadata.lng}`, 20, 56);
-        doc.text(`Date: ${metadata.date}`, 20, 63);
-
-        // Image with Text Overlay
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(canvas, 0, 0);
-        
-        // Draw Overlay Box
-        tempCtx.fillStyle = "rgba(0,0,0,0.6)";
-        tempCtx.fillRect(10, 10, 250, 80);
-        tempCtx.fillStyle = "white";
-        tempCtx.font = "16px Arial";
-        tempCtx.fillText(`ID: ${sID}`, 20, 30);
-        
-        let yOffset = 50;
-        samples.forEach(s => {
-            tempCtx.fillText(`${s.type}: ${s.munsell} (${s.percent}%)`, 20, yOffset);
-            yOffset += 20;
-        });
-
-        const imgData = tempCanvas.toDataURL('image/jpeg', 0.8);
-        doc.addImage(imgData, 'JPEG', 20, 75, 170, (canvas.height * 170 / canvas.width));
-
-        doc.save(`${sID}_SoilReport.pdf`);
-    }
-</script>
-
+<script type="module" src="app.js"></script>
 </body>
 </html>
