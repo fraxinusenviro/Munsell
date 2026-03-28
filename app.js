@@ -1,4 +1,4 @@
-import * as munsell from 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/+esm';
+import * as munsell from 'https://esm.sh/munsell@1.1.6';
 
 let libraryOk = false;
 
