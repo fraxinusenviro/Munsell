@@ -1,26 +1,47 @@
-import * as munsell from 'https://cdn.skypack.dev/munsell@1.1.6';
-
+// Munsell library loaded dynamically from raw CJS files (ESM CDN transforms
+// fail to bundle the 398KB MRD data tables — loading raw files + require shim
+// is the only reliable browser approach without a build step)
+let munsell = null;
 let libraryOk = false;
 
-(function verifyMunsellLibrary() {
+const MUNSELL_BASE = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
+// Load in dependency order: leaves first, index last
+const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'convert', 'invert', 'index'];
+
+async function initMunsell() {
     try {
+        const modules = {};
+        for (const name of MUNSELL_FILES) {
+            const text = await fetch(MUNSELL_BASE + name + '.js').then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${name}.js`);
+                return r.text();
+            });
+            const exports = {};
+            // Minimal require shim — resolves only internal munsell sub-modules
+            const require = (dep) => modules[dep.replace('./', '')];
+            // eslint-disable-next-line no-new-func
+            new Function('exports', 'require', text)(exports, require);
+            modules[name] = exports;
+        }
+        munsell = modules['index'];
         if (typeof munsell.rgb255ToMunsell !== 'function') {
-            throw new Error('rgb255ToMunsell not found. Exports: ' + Object.keys(munsell).join(', '));
+            throw new Error('rgb255ToMunsell not found after load. Keys: ' + Object.keys(munsell).join(', '));
         }
         libraryOk = true;
-        console.info('[munsell] Library OK. Exports:', Object.keys(munsell).join(', '));
+        console.info('[munsell] Loaded OK. Exports:', Object.keys(munsell).join(', '));
         try {
-            // Diagnostic test only — failure here does NOT mark library as broken
-            console.info('[munsell] Test conversion [120,85,55]:', munsell.rgb255ToMunsell([120, 85, 55]));
+            console.info('[munsell] Test [120,85,55]:', munsell.rgb255ToMunsell([120, 85, 55], undefined, true));
         } catch (testErr) {
-            console.warn('[munsell] Test call threw (may be out of gamut):', testErr.message);
+            console.warn('[munsell] Test call threw:', testErr.message);
         }
     } catch (e) {
-        console.error('[munsell] Library failed to load:', e);
+        console.error('[munsell] Failed to load:', e);
         const banner = document.getElementById('lib-warning');
         if (banner) banner.style.display = 'block';
     }
-})();
+}
+
+initMunsell();
 
 const canvas = document.getElementById('image-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
