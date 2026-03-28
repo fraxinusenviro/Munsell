@@ -337,9 +337,11 @@ function getNearestMunsell(r, g, b) {
         return { value: null, outOfGamut: false, libError: true };
     }
     try {
-        const value = munsell.rgb255ToMunsell([r, g, b]);
+        // clamp=true returns nearest in-gamut Munsell color instead of throwing
+        const value = munsell.rgb255ToMunsell([r, g, b], undefined, true);
         return { value, outOfGamut: false, libError: false };
-    } catch {
+    } catch (e) {
+        console.warn(`[munsell] rgb255ToMunsell([${r},${g},${b}]) threw:`, e?.message ?? e);
         return { value: null, outOfGamut: true, libError: false };
     }
 }
