@@ -1,40 +1,61 @@
 // Munsell library loaded dynamically from raw CJS files (ESM CDN transforms
-// fail to bundle the 398KB MRD data tables — loading raw files + require shim
-// is the only reliable browser approach without a build step)
+// fail to bundle the 398KB MRD data tables). Each file is wrapped in a blob
+// URL and loaded via dynamic import() — handles large files correctly in all
+// browsers, unlike new Function() which silently fails on WebKit for ~400KB bodies.
 let munsell = null;
 let libraryOk = false;
 
 const MUNSELL_BASE = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
-// Load in dependency order: leaves first, index last
 const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'convert', 'invert', 'index'];
 
 async function initMunsell() {
+    const modules = {};
+    // Shared cache key — blob module imports cannot close over local variables
+    const CACHE_KEY = '__munsellModuleCache';
+    window[CACHE_KEY] = modules;
+
     try {
-        const modules = {};
         for (const name of MUNSELL_FILES) {
             const text = await fetch(MUNSELL_BASE + name + '.js').then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${name}.js`);
+                if (!r.ok) throw new Error(`HTTP ${r.status} fetching munsell/${name}.js`);
                 return r.text();
             });
-            const exports = {};
-            // Minimal require shim — resolves only internal munsell sub-modules
-            const require = (dep) => modules[dep.replace('./', '')];
-            // eslint-disable-next-line no-new-func
-            new Function('exports', 'require', text)(exports, require);
-            modules[name] = exports;
+
+            // Wrap CJS in an ESM blob: inject exports object + require shim via window cache
+            const blob = new Blob([
+                `const exports={};\n` +
+                `const require=d=>window.${CACHE_KEY}[d.replace('./','')];\n` +
+                text + '\n' +
+                `export default exports;`
+            ], { type: 'text/javascript' });
+
+            const blobUrl = URL.createObjectURL(blob);
+            try {
+                const mod = await import(blobUrl);
+                modules[name] = mod.default;
+            } finally {
+                URL.revokeObjectURL(blobUrl);
+            }
+
+            const exportCount = Object.keys(modules[name]).filter(k => k !== '__esModule').length;
+            console.info(`[munsell] ${name}: ${exportCount} exports`);
         }
+
+        delete window[CACHE_KEY];
         munsell = modules['index'];
+
         if (typeof munsell.rgb255ToMunsell !== 'function') {
-            throw new Error('rgb255ToMunsell not found after load. Keys: ' + Object.keys(munsell).join(', '));
+            throw new Error('rgb255ToMunsell missing. Keys: ' + Object.keys(munsell).join(', '));
         }
         libraryOk = true;
-        console.info('[munsell] Loaded OK. Exports:', Object.keys(munsell).join(', '));
+        console.info('[munsell] Loaded OK:', Object.keys(munsell).join(', '));
         try {
             console.info('[munsell] Test [120,85,55]:', munsell.rgb255ToMunsell([120, 85, 55], undefined, true));
         } catch (testErr) {
             console.warn('[munsell] Test call threw:', testErr.message);
         }
     } catch (e) {
+        delete window[CACHE_KEY];
         console.error('[munsell] Failed to load:', e);
         const banner = document.getElementById('lib-warning');
         if (banner) banner.style.display = 'block';
