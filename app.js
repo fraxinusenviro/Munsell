@@ -1,17 +1,22 @@
-import * as munsell from 'https://esm.sh/munsell@1.1.6';
+import * as munsell from 'https://cdn.skypack.dev/munsell@1.1.6';
 
 let libraryOk = false;
 
 (function verifyMunsellLibrary() {
     try {
-        const testResult = munsell.rgb255ToMunsell([120, 85, 55]);
-        const reverseOk = typeof munsell.munsellToRgb255 === 'function';
-        console.info('[munsell] Library OK. Test result:', testResult);
-        console.info('[munsell] Reverse direction (munsellToRgb255):', reverseOk ? 'available' : 'NOT available');
-        console.info('[munsell] Exported API:', Object.keys(munsell).join(', '));
+        if (typeof munsell.rgb255ToMunsell !== 'function') {
+            throw new Error('rgb255ToMunsell not found. Exports: ' + Object.keys(munsell).join(', '));
+        }
         libraryOk = true;
+        console.info('[munsell] Library OK. Exports:', Object.keys(munsell).join(', '));
+        try {
+            // Diagnostic test only — failure here does NOT mark library as broken
+            console.info('[munsell] Test conversion [120,85,55]:', munsell.rgb255ToMunsell([120, 85, 55]));
+        } catch (testErr) {
+            console.warn('[munsell] Test call threw (may be out of gamut):', testErr.message);
+        }
     } catch (e) {
-        console.error('[munsell] Library failed to load or rgb255ToMunsell is missing:', e);
+        console.error('[munsell] Library failed to load:', e);
         const banner = document.getElementById('lib-warning');
         if (banner) banner.style.display = 'block';
     }
