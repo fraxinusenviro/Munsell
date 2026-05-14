@@ -10,7 +10,6 @@ const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'c
 
 async function initMunsell() {
     const modules = {};
-    // Shared cache key — blob module imports cannot close over local variables
     const CACHE_KEY = '__munsellModuleCache';
     window[CACHE_KEY] = modules;
 
@@ -21,7 +20,6 @@ async function initMunsell() {
                 return r.text();
             });
 
-            // Wrap CJS in an ESM blob: inject exports object + require shim via window cache
             const blob = new Blob([
                 `const exports={};\n` +
                 `const require=d=>window.${CACHE_KEY}[d.replace('./','')];\n` +
@@ -36,9 +34,6 @@ async function initMunsell() {
             } finally {
                 URL.revokeObjectURL(blobUrl);
             }
-
-            const exportCount = Object.keys(modules[name]).filter(k => k !== '__esModule').length;
-            console.info(`[munsell] ${name}: ${exportCount} exports`);
         }
 
         delete window[CACHE_KEY];
@@ -48,26 +43,20 @@ async function initMunsell() {
             throw new Error('rgb255ToMunsell missing. Keys: ' + Object.keys(munsell).join(', '));
         }
         libraryOk = true;
-        console.info('[munsell] Loaded OK:', Object.keys(munsell).join(', '));
-        try {
-            console.info('[munsell] Test [120,85,55]:', munsell.rgb255ToMunsell([120, 85, 55], undefined, true));
-        } catch (testErr) {
-            console.warn('[munsell] Test call threw:', testErr.message);
-        }
+        console.info('[munsell] Loaded OK');
     } catch (e) {
         delete window[CACHE_KEY];
         console.error('[munsell] Failed to load:', e);
-        const banner = document.getElementById('lib-warning');
-        if (banner) banner.style.display = 'block';
+        document.getElementById('lib-warning').style.display = 'block';
     }
 }
 
 initMunsell();
 
+// ===== DOM refs =====
 const canvas = document.getElementById('image-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-// Offscreen canvas used exclusively for sampling — never has crosshair or markers painted on it
 const sampleCanvas = document.createElement('canvas');
 const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
 const magnifier = document.getElementById('magnifier');
@@ -94,6 +83,7 @@ const pixelSlider = document.getElementById('pixel-slider');
 const pixelLabel = document.getElementById('pixel-label');
 const smoothToggle = document.getElementById('smooth-toggle');
 
+// ===== State =====
 let samples = [];
 let currentRGB = null;
 let metadata = { lat: '', lng: '', date: '' };
@@ -104,11 +94,78 @@ let smoothingEnabled = false;
 
 const LOUPE_SAMPLE_RADIUS = 0;
 const LOUPE_ZOOM = 4;
+const STORAGE_KEY = 'munsell_session';
 
+// ===== Persistence =====
+function saveToStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            samples,
+            metadata,
+            formFields: {
+                sampleId: sampleIdInput.value,
+                siteName: siteNameInput.value,
+                projectName: projectNameInput.value,
+            }
+        }));
+    } catch (e) {
+        console.warn('[storage] Save failed:', e);
+    }
+}
+
+function loadFromStorage() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (Array.isArray(state.samples) && state.samples.length > 0) {
+            samples = state.samples;
+            updateTable();
+        }
+        if (state.metadata) {
+            metadata = state.metadata;
+            if (metadata.lat && metadata.lng) gpsDisplay.innerText = `${metadata.lat}, ${metadata.lng}`;
+            if (metadata.date) dateDisplay.innerText = metadata.date;
+        }
+        if (state.formFields) {
+            sampleIdInput.value = state.formFields.sampleId || '';
+            siteNameInput.value = state.formFields.siteName || '';
+            projectNameInput.value = state.formFields.projectName || '';
+        }
+    } catch (e) {
+        console.warn('[storage] Load failed:', e);
+    }
+}
+
+function clearSession() {
+    if (!confirm('Clear all saved samples and metadata? This cannot be undone.')) return;
+    samples = [];
+    metadata = { lat: '', lng: '', date: '' };
+    sampleIdInput.value = '';
+    siteNameInput.value = '';
+    projectNameInput.value = '';
+    gpsDisplay.innerText = 'No GPS found in EXIF';
+    dateDisplay.innerText = 'N/A';
+    currentRGB = null;
+    baseImage = null;
+    crosshair = { x: null, y: null };
+    canvas.width = 0;
+    canvas.height = 0;
+    updateTable();
+    localStorage.removeItem(STORAGE_KEY);
+}
+
+loadFromStorage();
+
+// ===== Event listeners =====
 openFileBtn.addEventListener('click', () => fileInput.click());
 openGalleryBtn.addEventListener('click', () => fileInputGallery.click());
 fileInput.addEventListener('change', onFileChange);
 fileInputGallery.addEventListener('change', onFileChange);
+
+[sampleIdInput, siteNameInput, projectNameInput].forEach(el => {
+    el.addEventListener('input', saveToStorage);
+});
 
 smoothToggle.addEventListener('change', () => {
     smoothingEnabled = smoothToggle.checked;
@@ -148,10 +205,16 @@ canvas.addEventListener('touchmove', (e) => {
 window.saveSample = saveSample;
 window.deleteSample = deleteSample;
 window.generateReport = generateReport;
+window.exportCSV = exportCSV;
+window.exportJSON = exportJSON;
+window.clearSession = clearSession;
 
+// ===== File handling =====
 async function onFileChange(e) {
     const file = e.target.files?.[0];
-    if (!file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
         return;
     }
 
@@ -163,6 +226,8 @@ async function onFileChange(e) {
             metadata.lng = tags.GPSLongitude.description;
             gpsDisplay.innerText = `${metadata.lat}, ${metadata.lng}`;
         } else {
+            metadata.lat = '';
+            metadata.lng = '';
             gpsDisplay.innerText = 'No GPS found in EXIF';
         }
         dateDisplay.innerText = metadata.date;
@@ -188,14 +253,19 @@ async function onFileChange(e) {
                 x: Math.floor(canvas.width / 2),
                 y: Math.floor(canvas.height / 2)
             };
-            updateSelectionAt(crosshair.x, crosshair.y, canvas.getBoundingClientRect().left + crosshair.x, canvas.getBoundingClientRect().top + crosshair.y);
+            updateSelectionAt(
+                crosshair.x, crosshair.y,
+                canvas.getBoundingClientRect().left + crosshair.x,
+                canvas.getBoundingClientRect().top + crosshair.y
+            );
+            saveToStorage();
         };
         img.src = event.target.result;
     };
-
     reader.readAsDataURL(file);
 }
 
+// ===== Canvas drawing =====
 function drawPixelated() {
     if (!smoothingEnabled) {
         ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
@@ -203,7 +273,6 @@ function drawPixelated() {
         return;
     }
 
-    // Downscale to block resolution (bilinear avg), then paint each block as a solid rect
     const bw = Math.max(1, Math.floor(canvas.width / pixelSize));
     const bh = Math.max(1, Math.floor(canvas.height / pixelSize));
     const offscreen = document.createElement('canvas');
@@ -227,15 +296,10 @@ function drawPixelated() {
 }
 
 function redrawCanvas() {
-    if (!baseImage) {
-        return;
-    }
-
+    if (!baseImage) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPixelated();
-
     drawSampleMarkers();
-
     if (crosshair.x !== null && crosshair.y !== null) {
         drawCrosshair(crosshair.x, crosshair.y);
     }
@@ -266,21 +330,18 @@ function drawSampleMarkers() {
         ctx.shadowColor = 'black';
         ctx.shadowBlur = 3;
 
-        // outer dark ring for contrast
         ctx.strokeStyle = 'rgba(0,0,0,0.7)';
         ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
         ctx.stroke();
 
-        // inner white ring
         ctx.strokeStyle = 'rgba(255,255,255,0.95)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
         ctx.stroke();
 
-        // sample number centered in circle
         ctx.shadowBlur = 4;
         ctx.fillStyle = 'white';
         ctx.font = 'bold 11px sans-serif';
@@ -288,7 +349,6 @@ function drawSampleMarkers() {
         ctx.textBaseline = 'middle';
         ctx.fillText(String(s.number), s.x, s.y);
 
-        // Munsell label below circle
         ctx.font = '10px sans-serif';
         ctx.textBaseline = 'top';
         ctx.fillText(s.outOfGamut ? '⚠ OOG' : s.munsell, s.x, s.y + r + 4);
@@ -297,19 +357,16 @@ function drawSampleMarkers() {
     });
 }
 
+// ===== Sampling =====
 function handleSampling(e) {
     const rect = canvas.getBoundingClientRect();
-    const rawX = (e.clientX || e.pageX) - rect.left;
-    const rawY = (e.clientY || e.pageY) - rect.top;
-
-    const x = Math.floor(rawX);
-    const y = Math.floor(rawY);
+    const x = Math.floor((e.clientX || e.pageX) - rect.left);
+    const y = Math.floor((e.clientY || e.pageY) - rect.top);
 
     if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) {
         magnifier.style.display = 'none';
         return;
     }
-
     updateSelectionAt(x, y, e.clientX, e.clientY);
 }
 
@@ -340,8 +397,10 @@ function updateSelectionAt(x, y, clientX, clientY) {
     }
 
     magnifier.style.display = 'block';
-    magnifier.style.left = `${clientX - 60}px`;
-    magnifier.style.top = `${clientY - 145}px`;
+    // Clamp magnifier to viewport so it never goes off-screen
+    const mw = 120, mh = 120, pad = 5;
+    magnifier.style.left = `${Math.min(window.innerWidth - mw - pad, Math.max(pad, clientX - 60))}px`;
+    magnifier.style.top = `${Math.min(window.innerHeight - mh - pad, Math.max(pad, clientY - 145))}px`;
     magnifier.style.backgroundSize = `${canvas.width * LOUPE_ZOOM}px ${canvas.height * LOUPE_ZOOM}px`;
     magnifier.style.backgroundPosition = `-${x * LOUPE_ZOOM - 60}px -${y * LOUPE_ZOOM - 60}px`;
 }
@@ -356,30 +415,19 @@ function getAveragePixel(centerX, centerY, radius) {
     const height = y1 - y0 + 1;
     const data = sampleCtx.getImageData(x0, y0, width, height).data;
 
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    const totalPixels = width * height;
-
+    let r = 0, g = 0, b = 0;
+    const total = width * height;
     for (let i = 0; i < data.length; i += 4) {
         r += data[i];
         g += data[i + 1];
         b += data[i + 2];
     }
-
-    return [
-        Math.round(r / totalPixels),
-        Math.round(g / totalPixels),
-        Math.round(b / totalPixels)
-    ];
+    return [Math.round(r / total), Math.round(g / total), Math.round(b / total)];
 }
 
 function getNearestMunsell(r, g, b) {
-    if (!libraryOk) {
-        return { value: null, outOfGamut: false, libError: true };
-    }
+    if (!libraryOk) return { value: null, outOfGamut: false, libError: true };
     try {
-        // clamp=true returns nearest in-gamut Munsell color instead of throwing
         const value = munsell.rgb255ToMunsell([r, g, b], undefined, true);
         return { value, outOfGamut: false, libError: false };
     } catch (e) {
@@ -388,19 +436,23 @@ function getNearestMunsell(r, g, b) {
     }
 }
 
+// ===== Sample management =====
 function saveSample() {
     if (!currentRGB) {
-        alert('Select a color first!');
+        alert('Load an image and select a color by clicking on it first.');
         return;
     }
+
+    const rawPercent = parseFloat(percentValue.value);
+    const percent = isNaN(rawPercent) ? 0 : Math.min(100, Math.max(0, Math.round(rawPercent)));
+    percentValue.value = percent;
 
     const type = featureType.value;
     const libError = munsellValue.textContent === '⚠ Library not loaded';
     const outOfGamut = !libError && munsellValue.classList.contains('out-of-gamut');
     const munsellName = (outOfGamut || libError) ? null : munsellValue.textContent;
-    const percent = percentValue.value || 0;
 
-    const sample = {
+    samples.push({
         id: Date.now(),
         number: samples.length + 1,
         x: crosshair.x,
@@ -410,73 +462,151 @@ function saveSample() {
         outOfGamut,
         percent,
         rgb: `rgb(${currentRGB.join(',')})`
-    };
+    });
 
-    samples.push(sample);
     updateTable();
     redrawCanvas();
+    saveToStorage();
 }
 
 function updateTable() {
     tableBody.innerHTML = '';
-
     samples.forEach((sample) => {
-        const munsellCell = sample.outOfGamut
-            ? `<span class="out-of-gamut">⚠ Out of gamut</span>`
-            : `${sample.munsell}`;
-        const row = `<tr>
-            <td>${sample.number}</td>
-            <td>${sample.type}</td>
-            <td><span style="display:inline-block;width:12px;height:12px;background:${sample.rgb};border-radius:2px;margin-right:5px;${sample.outOfGamut ? 'border:1.5px dashed #e65100;' : ''}"></span>${munsellCell}</td>
-            <td>${sample.percent}%</td>
-            <td><button class="delete-btn" onclick="deleteSample(${sample.id})">✕</button></td>
-        </tr>`;
-        tableBody.innerHTML += row;
+        const tr = document.createElement('tr');
+
+        const numTd = document.createElement('td');
+        numTd.textContent = sample.number;
+
+        const typeTd = document.createElement('td');
+        typeTd.textContent = sample.type;
+
+        const munsellTd = document.createElement('td');
+        const swatch = document.createElement('span');
+        swatch.style.cssText = `display:inline-block;width:12px;height:12px;background:${sample.rgb};border-radius:2px;margin-right:5px;`;
+        if (sample.outOfGamut) swatch.style.border = '1.5px dashed #e65100';
+        munsellTd.appendChild(swatch);
+        if (sample.outOfGamut) {
+            const warn = document.createElement('span');
+            warn.className = 'out-of-gamut';
+            warn.textContent = '⚠ Out of gamut';
+            munsellTd.appendChild(warn);
+        } else {
+            munsellTd.appendChild(document.createTextNode(sample.munsell || ''));
+        }
+
+        const percentTd = document.createElement('td');
+        percentTd.textContent = `${sample.percent}%`;
+
+        const actionTd = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'delete-btn';
+        btn.textContent = '✕';
+        btn.addEventListener('click', () => deleteSample(sample.id));
+        actionTd.appendChild(btn);
+
+        tr.append(numTd, typeTd, munsellTd, percentTd, actionTd);
+        tableBody.appendChild(tr);
     });
 }
 
 function deleteSample(id) {
-    samples = samples.filter((sample) => sample.id !== id);
-    samples = samples.map((s, i) => ({ ...s, number: i + 1 }));
+    samples = samples.filter((s) => s.id !== id).map((s, i) => ({ ...s, number: i + 1 }));
     updateTable();
     redrawCanvas();
+    saveToStorage();
 }
 
+// ===== Export =====
 async function generateReport() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const sampleId = sampleIdInput.value || 'Unnamed_Sample';
+    if (samples.length === 0) {
+        alert('No samples recorded. Save at least one sample before generating a report.');
+        return;
+    }
+    if (!window.jspdf) {
+        alert('PDF library (jsPDF) failed to load. Check your internet connection and reload the page.');
+        return;
+    }
 
-    doc.setFontSize(22);
-    doc.text('Soil Color Analysis Report', 20, 20);
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const sampleId = sampleIdInput.value.trim() || 'Unnamed_Sample';
+        const pageH = doc.internal.pageSize.getHeight();
 
-    doc.setFontSize(12);
-    doc.text(`Project: ${projectNameInput.value}`, 20, 35);
-    doc.text(`Site: ${siteNameInput.value}`, 20, 42);
-    doc.text(`Sample ID: ${sampleId}`, 20, 49);
-    doc.text(`Location: ${metadata.lat}, ${metadata.lng}`, 20, 56);
-    doc.text(`Date: ${metadata.date}`, 20, 63);
+        doc.setFontSize(22);
+        doc.text('Soil Color Analysis Report', 20, 20);
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(canvas, 0, 0);
+        doc.setFontSize(12);
+        doc.text(`Project: ${projectNameInput.value || 'N/A'}`, 20, 35);
+        doc.text(`Site: ${siteNameInput.value || 'N/A'}`, 20, 42);
+        doc.text(`Sample ID: ${sampleId}`, 20, 49);
+        doc.text(`Location: ${metadata.lat || 'N/A'}, ${metadata.lng || 'N/A'}`, 20, 56);
+        doc.text(`Date: ${metadata.date || 'N/A'}`, 20, 63);
 
-    tempCtx.fillStyle = 'rgba(0,0,0,0.6)';
-    tempCtx.fillRect(10, 10, 250, 80);
-    tempCtx.fillStyle = 'white';
-    tempCtx.font = '16px Arial';
-    tempCtx.fillText(`ID: ${sampleId}`, 20, 30);
+        let nextY = 70;
+        if (baseImage) {
+            const imgData = canvas.toDataURL('image/jpeg', 0.8);
+            const imgH = Math.min((canvas.height * 170) / canvas.width, pageH - 90);
+            doc.addImage(imgData, 'JPEG', 20, 70, 170, imgH);
+            nextY = 70 + imgH + 10;
+        }
 
-    let yOffset = 50;
-    samples.forEach((sample) => {
-        tempCtx.fillText(`${sample.number}. ${sample.type}: ${sample.munsell} (${sample.percent}%)`, 20, yOffset);
-        yOffset += 20;
-    });
+        if (nextY + 20 > pageH - 15) {
+            doc.addPage();
+            nextY = 20;
+        }
 
-    const imgData = tempCanvas.toDataURL('image/jpeg', 0.8);
-    doc.addImage(imgData, 'JPEG', 20, 75, 170, (canvas.height * 170) / canvas.width);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('Samples:', 20, nextY);
+        doc.setFont(undefined, 'normal');
+        nextY += 8;
 
-    doc.save(`${sampleId}_SoilReport.pdf`);
+        const lineH = 7;
+        for (const sample of samples) {
+            if (nextY + lineH > pageH - 15) {
+                doc.addPage();
+                nextY = 20;
+            }
+            const munsellStr = sample.outOfGamut ? 'Out of gamut' : (sample.munsell || 'N/A');
+            doc.text(`${sample.number}. ${sample.type}: ${munsellStr} (${sample.percent}%)`, 20, nextY);
+            nextY += lineH;
+        }
+
+        doc.save(`${sampleId}_SoilReport.pdf`);
+    } catch (e) {
+        console.error('[pdf] Generation failed:', e);
+        alert(`PDF generation failed: ${e.message}`);
+    }
+}
+
+function exportCSV() {
+    if (samples.length === 0) { alert('No samples to export.'); return; }
+    const escape = v => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ['#', 'Type', 'Munsell', 'Percent', 'RGB', 'Out of Gamut'];
+    const rows = samples.map(s => [s.number, s.type, s.munsell || '', s.percent, s.rgb, s.outOfGamut]);
+    const csv = [header, ...rows].map(r => r.map(escape).join(',')).join('\n');
+    downloadFile(csv, 'text/csv', `${sampleIdInput.value.trim() || 'samples'}.csv`);
+}
+
+function exportJSON() {
+    if (samples.length === 0) { alert('No samples to export.'); return; }
+    const data = {
+        sampleId: sampleIdInput.value,
+        site: siteNameInput.value,
+        project: projectNameInput.value,
+        location: metadata,
+        samples: samples.map(({ id, number, type, munsell, percent, rgb, outOfGamut }) =>
+            ({ id, number, type, munsell, percent, rgb, outOfGamut }))
+    };
+    downloadFile(JSON.stringify(data, null, 2), 'application/json', `${sampleIdInput.value.trim() || 'samples'}.json`);
+}
+
+function downloadFile(content, mimeType, filename) {
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 }
