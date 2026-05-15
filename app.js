@@ -8,6 +8,105 @@ let libraryOk = false;
 const MUNSELL_BASE = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
 const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'convert', 'invert', 'index'];
 
+// Soil color chips from the Munsell Soil Color Book.
+// Keys are Munsell codes; values are the standard soil color names.
+const SOIL_CHIPS = {
+  // 10R
+  '10R 2.5/1':'Reddish Black','10R 2.5/2':'Very Dusky Red',
+  '10R 3/1':'Dark Reddish Gray','10R 3/2':'Dusky Red','10R 3/3':'Dusky Red','10R 3/4':'Dusky Red','10R 3/6':'Dark Red',
+  '10R 4/1':'Dark Reddish Gray','10R 4/2':'Weak Red','10R 4/3':'Weak Red','10R 4/4':'Weak Red','10R 4/6':'Red','10R 4/8':'Red',
+  '10R 5/1':'Reddish Gray','10R 5/2':'Weak Red','10R 5/3':'Weak Red','10R 5/4':'Weak Red','10R 5/6':'Red','10R 5/8':'Red',
+  '10R 6/1':'Reddish Gray','10R 6/2':'Pale Red','10R 6/3':'Pale Red','10R 6/4':'Pale Red','10R 6/6':'Light Red','10R 6/8':'Light Red',
+  '10R 7/1':'Light Gray','10R 7/2':'Pale Red','10R 7/3':'Pale Red','10R 7/4':'Pale Red','10R 7/6':'Light Red','10R 7/8':'Light Red',
+  '10R 8/1':'White','10R 8/2':'Pinkish White','10R 8/3':'Pink','10R 8/4':'Pink',
+  // 2.5YR
+  '2.5YR 2.5/1':'Black','2.5YR 2.5/2':'Very Dusky Red','2.5YR 2.5/3':'Dark Reddish Brown','2.5YR 2.5/4':'Dark Reddish Brown',
+  '2.5YR 3/1':'Dark Reddish Gray','2.5YR 3/2':'Dusky Red','2.5YR 3/3':'Dark Reddish Brown','2.5YR 3/4':'Dark Reddish Brown','2.5YR 3/6':'Dark Red',
+  '2.5YR 4/1':'Dark Reddish Gray','2.5YR 4/2':'Weak Red','2.5YR 4/3':'Reddish Brown','2.5YR 4/4':'Reddish Brown','2.5YR 4/6':'Red','2.5YR 4/8':'Red',
+  '2.5YR 5/1':'Reddish Gray','2.5YR 5/2':'Weak Red','2.5YR 5/3':'Reddish Brown','2.5YR 5/4':'Reddish Brown','2.5YR 5/6':'Red','2.5YR 5/8':'Red',
+  '2.5YR 6/1':'Reddish Gray','2.5YR 6/2':'Pale Red','2.5YR 6/3':'Light Reddish Brown','2.5YR 6/4':'Light Reddish Brown','2.5YR 6/6':'Light Red','2.5YR 6/8':'Light Red',
+  '2.5YR 7/1':'Light Reddish Gray','2.5YR 7/2':'Pale Red','2.5YR 7/3':'Light Reddish Brown','2.5YR 7/4':'Light Reddish Brown','2.5YR 7/6':'Light Red','2.5YR 7/8':'Light Red',
+  '2.5YR 8/1':'White','2.5YR 8/2':'Pinkish White','2.5YR 8/3':'Pink','2.5YR 8/4':'Pink',
+  // 5YR
+  '5YR 2.5/1':'Black','5YR 2.5/2':'Dark Reddish Brown',
+  '5YR 3/1':'Very Dark Gray','5YR 3/2':'Dark Reddish Brown','5YR 3/3':'Dark Reddish Brown','5YR 3/4':'Dark Reddish Brown',
+  '5YR 4/1':'Dark Gray','5YR 4/2':'Dark Reddish Gray','5YR 4/3':'Reddish Brown','5YR 4/4':'Reddish Brown','5YR 4/6':'Yellowish Red',
+  '5YR 5/1':'Gray','5YR 5/2':'Reddish Gray','5YR 5/3':'Reddish Brown','5YR 5/4':'Reddish Brown','5YR 5/6':'Yellowish Red','5YR 5/8':'Yellowish Red',
+  '5YR 6/1':'Gray','5YR 6/2':'Pinkish Gray','5YR 6/3':'Light Reddish Brown','5YR 6/4':'Light Reddish Brown','5YR 6/6':'Reddish Yellow','5YR 6/8':'Reddish Yellow',
+  '5YR 7/1':'Light Gray','5YR 7/2':'Pinkish Gray','5YR 7/3':'Pink','5YR 7/4':'Pink','5YR 7/6':'Reddish Yellow','5YR 7/8':'Reddish Yellow',
+  '5YR 8/1':'White','5YR 8/2':'Pinkish White','5YR 8/3':'Pink','5YR 8/4':'Pink',
+  // 7.5YR
+  '7.5YR 2.5/1':'Black','7.5YR 2.5/2':'Very Dark Brown','7.5YR 2.5/3':'Very Dark Brown',
+  '7.5YR 3/1':'Very Dark Gray','7.5YR 3/2':'Dark Brown','7.5YR 3/3':'Dark Brown','7.5YR 3/4':'Dark Brown',
+  '7.5YR 4/1':'Dark Gray','7.5YR 4/2':'Brown','7.5YR 4/3':'Brown','7.5YR 4/4':'Brown','7.5YR 4/6':'Strong Brown',
+  '7.5YR 5/1':'Gray','7.5YR 5/2':'Brown','7.5YR 5/3':'Brown','7.5YR 5/4':'Brown','7.5YR 5/6':'Strong Brown','7.5YR 5/8':'Strong Brown',
+  '7.5YR 6/1':'Gray','7.5YR 6/2':'Pinkish Gray','7.5YR 6/3':'Light Brown','7.5YR 6/4':'Light Brown','7.5YR 6/6':'Reddish Yellow','7.5YR 6/8':'Reddish Yellow',
+  '7.5YR 7/1':'Light Gray','7.5YR 7/2':'Pinkish Gray','7.5YR 7/3':'Pink','7.5YR 7/4':'Pink','7.5YR 7/6':'Reddish Yellow','7.5YR 7/8':'Reddish Yellow',
+  '7.5YR 8/1':'White','7.5YR 8/2':'Pinkish White','7.5YR 8/3':'Pink','7.5YR 8/4':'Pink','7.5YR 8/6':'Reddish Yellow',
+  // 10YR
+  '10YR 2/1':'Black','10YR 2/2':'Very Dark Brown',
+  '10YR 3/1':'Very Dark Gray','10YR 3/2':'Very Dark Grayish Brown','10YR 3/3':'Dark Brown','10YR 3/4':'Dark Yellowish Brown','10YR 3/6':'Dark Yellowish Brown',
+  '10YR 4/1':'Dark Gray','10YR 4/2':'Dark Grayish Brown','10YR 4/3':'Brown','10YR 4/4':'Dark Yellowish Brown','10YR 4/6':'Dark Yellowish Brown',
+  '10YR 5/1':'Gray','10YR 5/2':'Grayish Brown','10YR 5/3':'Brown','10YR 5/4':'Yellowish Brown','10YR 5/6':'Yellowish Brown','10YR 5/8':'Yellowish Brown',
+  '10YR 6/1':'Gray','10YR 6/2':'Light Brownish Gray','10YR 6/3':'Pale Brown','10YR 6/4':'Light Yellowish Brown','10YR 6/6':'Brownish Yellow','10YR 6/8':'Brownish Yellow',
+  '10YR 7/1':'Light Gray','10YR 7/2':'Light Gray','10YR 7/3':'Very Pale Brown','10YR 7/4':'Very Pale Brown','10YR 7/6':'Yellow','10YR 7/8':'Yellow',
+  '10YR 8/1':'White','10YR 8/2':'Very Pale Brown','10YR 8/3':'Very Pale Brown','10YR 8/4':'Very Pale Brown','10YR 8/6':'Yellow','10YR 8/8':'Yellow',
+  // 2.5Y
+  '2.5Y 2.5/1':'Black',
+  '2.5Y 3/1':'Very Dark Gray','2.5Y 3/2':'Very Dark Grayish Brown','2.5Y 3/3':'Dark Olive Brown',
+  '2.5Y 4/1':'Dark Gray','2.5Y 4/2':'Dark Grayish Brown','2.5Y 4/3':'Olive Brown','2.5Y 4/4':'Olive Brown',
+  '2.5Y 5/1':'Gray','2.5Y 5/2':'Grayish Brown','2.5Y 5/3':'Light Olive Brown','2.5Y 5/4':'Light Olive Brown','2.5Y 5/6':'Light Olive Brown',
+  '2.5Y 6/1':'Gray','2.5Y 6/2':'Light Brownish Gray','2.5Y 6/3':'Light Yellowish Brown','2.5Y 6/4':'Light Yellowish Brown','2.5Y 6/6':'Olive Yellow','2.5Y 6/8':'Olive Yellow',
+  '2.5Y 7/1':'Light Gray','2.5Y 7/2':'Light Gray','2.5Y 7/3':'Pale Yellow','2.5Y 7/4':'Pale Yellow','2.5Y 7/6':'Yellow','2.5Y 7/8':'Yellow',
+  '2.5Y 8/1':'White','2.5Y 8/2':'Pale Yellow','2.5Y 8/3':'Pale Yellow','2.5Y 8/4':'Pale Yellow','2.5Y 8/6':'Yellow','2.5Y 8/8':'Yellow',
+  // 5Y
+  '5Y 2.5/1':'Black','5Y 2.5/2':'Black',
+  '5Y 3/1':'Very Dark Gray','5Y 3/2':'Dark Olive Gray',
+  '5Y 4/1':'Dark Gray','5Y 4/2':'Olive Gray','5Y 4/3':'Olive','5Y 4/4':'Olive',
+  '5Y 5/1':'Gray','5Y 5/2':'Olive Gray','5Y 5/3':'Olive','5Y 5/4':'Olive','5Y 5/6':'Olive',
+  '5Y 6/1':'Gray','5Y 6/2':'Light Olive Gray','5Y 6/3':'Pale Olive','5Y 6/4':'Pale Olive','5Y 6/6':'Olive Yellow','5Y 6/8':'Olive Yellow',
+  '5Y 7/1':'Light Gray','5Y 7/2':'Light Gray','5Y 7/3':'Pale Yellow','5Y 7/4':'Pale Yellow','5Y 7/6':'Yellow','5Y 7/8':'Yellow',
+  '5Y 8/1':'White','5Y 8/2':'Pale Yellow','5Y 8/3':'Pale Yellow','5Y 8/4':'Pale Yellow','5Y 8/6':'Yellow','5Y 8/8':'Yellow',
+  // 10Y — gley (chroma 1 only)
+  '10Y 2.5/1':'Greenish Black','10Y 3/1':'Very Dark Greenish Gray','10Y 4/1':'Dark Greenish Gray',
+  '10Y 5/1':'Greenish Gray','10Y 6/1':'Greenish Gray','10Y 7/1':'Light Greenish Gray','10Y 8/1':'Light Greenish Gray',
+  // 5GY
+  '5GY 2.5/1':'Greenish Black','5GY 3/1':'Very Dark Greenish Gray','5GY 4/1':'Dark Greenish Gray',
+  '5GY 5/1':'Greenish Gray','5GY 6/1':'Greenish Gray','5GY 7/1':'Light Greenish Gray','5GY 8/1':'Light Greenish Gray',
+  // 10GY
+  '10GY 2.5/1':'Greenish Black','10GY 3/1':'Very Dark Greenish Gray','10GY 4/1':'Dark Greenish Gray',
+  '10GY 5/1':'Greenish Gray','10GY 6/1':'Greenish Gray','10GY 7/1':'Light Greenish Gray','10GY 8/1':'Light Greenish Gray',
+  // 5G
+  '5G 2.5/1':'Greenish Black','5G 2.5/2':'Very Dark Grayish Green',
+  '5G 3/1':'Very Dark Greenish Gray','5G 3/2':'Very Dark Grayish Green',
+  '5G 4/1':'Dark Greenish Gray','5G 4/2':'Grayish Green',
+  '5G 5/1':'Greenish Gray','5G 5/2':'Grayish Green',
+  '5G 6/1':'Greenish Gray','5G 6/2':'Pale Green',
+  '5G 7/1':'Light Greenish Gray','5G 7/2':'Pale Green',
+  '5G 8/1':'Light Greenish Gray','5G 8/2':'Pale Green',
+  // 10G
+  '10G 2.5/1':'Greenish Black','10G 3/1':'Very Dark Greenish Gray','10G 4/1':'Dark Greenish Gray',
+  '10G 5/1':'Greenish Gray','10G 6/1':'Greenish Gray','10G 7/1':'Light Greenish Gray','10G 8/1':'Light Greenish Gray',
+  // 5BG
+  '5BG 2.5/1':'Greenish Black','5BG 3/1':'Very Dark Greenish Gray','5BG 4/1':'Dark Greenish Gray',
+  '5BG 5/1':'Greenish Gray','5BG 6/1':'Greenish Gray','5BG 7/1':'Light Greenish Gray','5BG 8/1':'Light Greenish Gray',
+  // 10BG
+  '10BG 2.5/1':'Greenish Black','10BG 3/1':'Very Dark Greenish Gray','10BG 4/1':'Dark Greenish Gray',
+  '10BG 5/1':'Greenish Gray','10BG 6/1':'Greenish Gray','10BG 7/1':'Light Greenish Gray','10BG 8/1':'Light Greenish Gray',
+  // 5B
+  '5B 2.5/1':'Bluish Black','5B 3/1':'Very Dark Bluish Gray','5B 4/1':'Dark Bluish Gray',
+  '5B 5/1':'Bluish Gray','5B 6/1':'Bluish Gray','5B 7/1':'Light Bluish Gray','5B 8/1':'Light Bluish Gray',
+  // 10B
+  '10B 2.5/1':'Bluish Black','10B 3/1':'Very Dark Bluish Gray','10B 4/1':'Dark Bluish Gray',
+  '10B 5/1':'Bluish Gray','10B 6/1':'Bluish Gray','10B 7/1':'Light Bluish Gray','10B 8/1':'Light Bluish Gray',
+  // 5PB
+  '5PB 2.5/1':'Bluish Black','5PB 3/1':'Very Dark Bluish Gray','5PB 4/1':'Dark Bluish Gray',
+  '5PB 5/1':'Bluish Gray','5PB 6/1':'Bluish Gray','5PB 7/1':'Light Bluish Gray','5PB 8/1':'Light Bluish Gray',
+  // Neutrals
+  'N 2.5/':'Black','N 3/':'Very Dark Gray','N 4/':'Dark Gray',
+  'N 5/':'Gray','N 6/':'Gray','N 7/':'Light Gray','N 8/':'White',
+};
+
 async function initMunsell() {
     const modules = {};
     const CACHE_KEY = '__munsellModuleCache';
@@ -43,12 +142,8 @@ async function initMunsell() {
             throw new Error('rgb255ToMunsell missing. Keys: ' + Object.keys(munsell).join(', '));
         }
         libraryOk = true;
-        try {
-            const test = munsell.rgb255ToMunsell(120, 85, 55, undefined, 1, 1e-6, 200, 'clamp');
-            console.info('[munsell] Loaded OK, test [120,85,55]:', test);
-        } catch (testErr) {
-            console.warn('[munsell] Loaded but test call threw:', testErr.message);
-        }
+        buildChipLabCache();
+        console.info(`[munsell] Loaded OK — ${chipLabCache.length} soil chips cached`);
     } catch (e) {
         delete window[CACHE_KEY];
         console.error('[munsell] Failed to load:', e);
@@ -91,15 +186,47 @@ const smoothToggle = document.getElementById('smooth-toggle');
 // ===== State =====
 let samples = [];
 let currentRGB = null;
+let currentMunsellResult = null;
 let metadata = { lat: '', lng: '', date: '' };
 let baseImage = null;
 let crosshair = { x: null, y: null };
 let pixelSize = 6;
 let smoothingEnabled = false;
+let chipLabCache = [];
 
 const LOUPE_SAMPLE_RADIUS = 0;
 const LOUPE_ZOOM = 4;
 const STORAGE_KEY = 'munsell_session';
+
+// ===== Chip Lab cache =====
+// Pre-compute CIELab for every soil chip once the library is ready.
+// Sampling then finds the nearest chip by squared Euclidean delta-E.
+function buildChipLabCache() {
+    chipLabCache = [];
+    for (const [code, name] of Object.entries(SOIL_CHIPS)) {
+        try {
+            const lab = munsell.munsellToLab(code);
+            chipLabCache.push({ code, name, lab });
+        } catch (e) {
+            console.warn(`[chips] Lab failed for ${code}:`, e.message);
+        }
+    }
+}
+
+// Standard sRGB → CIELab (D65) — matches the illuminant used by munsell.munsellToLab
+function rgbToLab(r, g, b) {
+    const lin = c => {
+        c /= 255;
+        return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92;
+    };
+    const lr = lin(r), lg = lin(g), lb = lin(b);
+    const X = lr * 0.4124564 + lg * 0.3575761 + lb * 0.1804375;
+    const Y = lr * 0.2126729 + lg * 0.7151522 + lb * 0.0721750;
+    const Z = lr * 0.0193339 + lg * 0.1191920 + lb * 0.9503041;
+    const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+    const fy = f(Y);
+    return [116 * fy - 16, 500 * (f(X / 0.95047) - fy), 200 * (fy - f(Z / 1.08883))];
+}
 
 // ===== Persistence =====
 function saveToStorage() {
@@ -152,6 +279,7 @@ function clearSession() {
     gpsDisplay.innerText = 'No GPS found in EXIF';
     dateDisplay.innerText = 'N/A';
     currentRGB = null;
+    currentMunsellResult = null;
     baseImage = null;
     crosshair = { x: null, y: null };
     canvas.width = 0;
@@ -356,7 +484,7 @@ function drawSampleMarkers() {
 
         ctx.font = '10px sans-serif';
         ctx.textBaseline = 'top';
-        ctx.fillText(s.outOfGamut ? '⚠ OOG' : s.munsell, s.x, s.y + r + 4);
+        ctx.fillText(s.munsell || '⚠', s.x, s.y + r + 4);
 
         ctx.restore();
     });
@@ -386,23 +514,19 @@ function updateSelectionAt(x, y, clientX, clientY) {
     activeColorPreview.style.background = rgbText;
     rgbValue.innerText = `${rgbText} · 1px`;
 
-    const result = getNearestMunsell(avgPixel[0], avgPixel[1], avgPixel[2]);
-    if (result.libError) {
+    currentMunsellResult = getNearestChip(avgPixel[0], avgPixel[1], avgPixel[2]);
+
+    if (currentMunsellResult.libError) {
         munsellValue.textContent = '⚠ Library not loaded';
         munsellValue.classList.add('out-of-gamut');
         activeColorPreview.classList.remove('out-of-gamut');
-    } else if (result.outOfGamut) {
-        munsellValue.textContent = '⚠ Out of gamut';
-        munsellValue.classList.add('out-of-gamut');
-        activeColorPreview.classList.add('out-of-gamut');
     } else {
-        munsellValue.textContent = result.value;
+        munsellValue.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
         munsellValue.classList.remove('out-of-gamut');
         activeColorPreview.classList.remove('out-of-gamut');
     }
 
     magnifier.style.display = 'block';
-    // Clamp magnifier to viewport so it never goes off-screen
     const mw = 120, mh = 120, pad = 5;
     magnifier.style.left = `${Math.min(window.innerWidth - mw - pad, Math.max(pad, clientX - 60))}px`;
     magnifier.style.top = `${Math.min(window.innerHeight - mh - pad, Math.max(pad, clientY - 145))}px`;
@@ -430,17 +554,30 @@ function getAveragePixel(centerX, centerY, radius) {
     return [Math.round(r / total), Math.round(g / total), Math.round(b / total)];
 }
 
-function getNearestMunsell(r, g, b) {
-    if (!libraryOk) return { value: null, outOfGamut: false, libError: true };
-    try {
-        // Signature: rgb255ToMunsell(r, g, b, rgbSpace, digits, threshold, maxIter, ifReachMax, factor)
-        // ifReachMax='clamp' returns nearest in-gamut color instead of throwing
-        const value = munsell.rgb255ToMunsell(r, g, b, undefined, 1, 1e-6, 200, 'clamp');
-        return { value, outOfGamut: false, libError: false };
-    } catch (e) {
-        console.warn(`[munsell] rgb255ToMunsell([${r},${g},${b}]) threw:`, e?.message ?? e);
-        return { value: null, outOfGamut: true, libError: false };
+// Find the nearest soil chip by CIE76 delta-E in Lab space.
+function getNearestChip(r, g, b) {
+    if (!libraryOk || chipLabCache.length === 0) {
+        return { code: null, name: null, libError: true };
     }
+
+    const lab = rgbToLab(r, g, b);
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const chip of chipLabCache) {
+        const dL = lab[0] - chip.lab[0];
+        const da = lab[1] - chip.lab[1];
+        const db = lab[2] - chip.lab[2];
+        const dist = dL * dL + da * da + db * db;
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = chip;
+        }
+    }
+
+    return nearest
+        ? { code: nearest.code, name: nearest.name, libError: false }
+        : { code: null, name: null, libError: true };
 }
 
 // ===== Sample management =====
@@ -455,9 +592,8 @@ function saveSample() {
     percentValue.value = percent;
 
     const type = featureType.value;
-    const libError = munsellValue.textContent === '⚠ Library not loaded';
-    const outOfGamut = !libError && munsellValue.classList.contains('out-of-gamut');
-    const munsellName = (outOfGamut || libError) ? null : munsellValue.textContent;
+    const munsellCode = currentMunsellResult?.code ?? null;
+    const soilName = currentMunsellResult?.name ?? null;
 
     samples.push({
         id: Date.now(),
@@ -465,8 +601,9 @@ function saveSample() {
         x: crosshair.x,
         y: crosshair.y,
         type,
-        munsell: munsellName,
-        outOfGamut,
+        munsell: munsellCode,
+        soilName,
+        outOfGamut: !munsellCode,
         percent,
         rgb: `rgb(${currentRGB.join(',')})`
     });
@@ -489,16 +626,16 @@ function updateTable() {
 
         const munsellTd = document.createElement('td');
         const swatch = document.createElement('span');
-        swatch.style.cssText = `display:inline-block;width:12px;height:12px;background:${sample.rgb};border-radius:2px;margin-right:5px;`;
-        if (sample.outOfGamut) swatch.style.border = '1.5px dashed #e65100';
+        swatch.style.cssText = `display:inline-block;width:12px;height:12px;background:${sample.rgb};border-radius:2px;margin-right:5px;vertical-align:middle;`;
         munsellTd.appendChild(swatch);
-        if (sample.outOfGamut) {
-            const warn = document.createElement('span');
-            warn.className = 'out-of-gamut';
-            warn.textContent = '⚠ Out of gamut';
-            munsellTd.appendChild(warn);
-        } else {
-            munsellTd.appendChild(document.createTextNode(sample.munsell || ''));
+        const codeSpan = document.createElement('span');
+        codeSpan.textContent = sample.munsell || '—';
+        munsellTd.appendChild(codeSpan);
+        if (sample.soilName) {
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = ` ${sample.soilName}`;
+            nameSpan.style.cssText = 'color:#666;font-size:0.85em;';
+            munsellTd.appendChild(nameSpan);
         }
 
         const percentTd = document.createElement('td');
@@ -575,8 +712,10 @@ async function generateReport() {
                 doc.addPage();
                 nextY = 20;
             }
-            const munsellStr = sample.outOfGamut ? 'Out of gamut' : (sample.munsell || 'N/A');
-            doc.text(`${sample.number}. ${sample.type}: ${munsellStr} (${sample.percent}%)`, 20, nextY);
+            const label = sample.munsell
+                ? `${sample.munsell} ${sample.soilName || ''}`.trim()
+                : 'N/A';
+            doc.text(`${sample.number}. ${sample.type}: ${label} (${sample.percent}%)`, 20, nextY);
             nextY += lineH;
         }
 
@@ -590,8 +729,8 @@ async function generateReport() {
 function exportCSV() {
     if (samples.length === 0) { alert('No samples to export.'); return; }
     const escape = v => `"${String(v).replace(/"/g, '""')}"`;
-    const header = ['#', 'Type', 'Munsell', 'Percent', 'RGB', 'Out of Gamut'];
-    const rows = samples.map(s => [s.number, s.type, s.munsell || '', s.percent, s.rgb, s.outOfGamut]);
+    const header = ['#', 'Type', 'Munsell Code', 'Soil Color Name', 'Percent', 'RGB'];
+    const rows = samples.map(s => [s.number, s.type, s.munsell || '', s.soilName || '', s.percent, s.rgb]);
     const csv = [header, ...rows].map(r => r.map(escape).join(',')).join('\n');
     downloadFile(csv, 'text/csv', `${sampleIdInput.value.trim() || 'samples'}.csv`);
 }
@@ -603,8 +742,8 @@ function exportJSON() {
         site: siteNameInput.value,
         project: projectNameInput.value,
         location: metadata,
-        samples: samples.map(({ id, number, type, munsell, percent, rgb, outOfGamut }) =>
-            ({ id, number, type, munsell, percent, rgb, outOfGamut }))
+        samples: samples.map(({ id, number, type, munsell, soilName, percent, rgb }) =>
+            ({ id, number, type, munsell, soilName, percent, rgb }))
     };
     downloadFile(JSON.stringify(data, null, 2), 'application/json', `${sampleIdInput.value.trim() || 'samples'}.json`);
 }
