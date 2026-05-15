@@ -43,7 +43,12 @@ async function initMunsell() {
             throw new Error('rgb255ToMunsell missing. Keys: ' + Object.keys(munsell).join(', '));
         }
         libraryOk = true;
-        console.info('[munsell] Loaded OK');
+        try {
+            const test = munsell.rgb255ToMunsell(120, 85, 55, undefined, 1, 1e-6, 200, 'clamp');
+            console.info('[munsell] Loaded OK, test [120,85,55]:', test);
+        } catch (testErr) {
+            console.warn('[munsell] Loaded but test call threw:', testErr.message);
+        }
     } catch (e) {
         delete window[CACHE_KEY];
         console.error('[munsell] Failed to load:', e);
@@ -428,7 +433,9 @@ function getAveragePixel(centerX, centerY, radius) {
 function getNearestMunsell(r, g, b) {
     if (!libraryOk) return { value: null, outOfGamut: false, libError: true };
     try {
-        const value = munsell.rgb255ToMunsell([r, g, b], undefined, true);
+        // Signature: rgb255ToMunsell(r, g, b, rgbSpace, digits, threshold, maxIter, ifReachMax, factor)
+        // ifReachMax='clamp' returns nearest in-gamut color instead of throwing
+        const value = munsell.rgb255ToMunsell(r, g, b, undefined, 1, 1e-6, 200, 'clamp');
         return { value, outOfGamut: false, libError: false };
     } catch (e) {
         console.warn(`[munsell] rgb255ToMunsell([${r},${g},${b}]) threw:`, e?.message ?? e);
