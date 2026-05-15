@@ -227,6 +227,44 @@ button:hover {
     border: 2px dashed #e65100;
 }
 
+.export-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.export-secondary-btn {
+    flex: 1;
+    background: var(--secondary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    transition: opacity 0.2s;
+}
+
+.export-secondary-btn:hover {
+    opacity: 0.9;
+}
+
+.clear-btn {
+    flex: 1;
+    background: #b71c1c;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    transition: opacity 0.2s;
+}
+
+.clear-btn:hover {
+    opacity: 0.9;
+}
+
 #magnifier {
     position: fixed;
     width: 120px;
