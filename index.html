@@ -3,94 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoilColor - Munsell Estimator</title>
+    <title>SoilColor — Munsell Estimator</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.12.0/dist/exif-reader.min.js"
-            onerror="document.getElementById('cdn-warning').style.display='block';document.getElementById('cdn-warning-detail').textContent='ExifReader failed to load — EXIF extraction unavailable.'"></script>
+            onerror="document.getElementById('cdn-warning').style.display='flex';document.getElementById('cdn-warning-detail').textContent='ExifReader failed to load — EXIF extraction unavailable.'"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-            onerror="document.getElementById('cdn-warning').style.display='block';document.getElementById('cdn-warning-detail').textContent='jsPDF failed to load — PDF export unavailable.'"></script>
+            onerror="document.getElementById('cdn-warning').style.display='flex';document.getElementById('cdn-warning-detail').textContent='jsPDF failed to load — PDF export unavailable.'"></script>
 </head>
 <body>
+
+<header class="app-header">
+    <div class="app-header-inner">
+        <svg class="app-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="14" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="16" cy="16" r="7" fill="rgba(255,255,255,0.9)"/>
+            <line x1="16" y1="4" x2="16" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16" y1="20" x2="16" y2="28" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4" y1="16" x2="12" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <line x1="20" y1="16" x2="28" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <div>
+            <h1><span class="brand">SoilColor</span><span class="subtitle"> Munsell Estimator</span></h1>
+        </div>
+    </div>
+</header>
+
 <div class="container">
-    <h1>SoilColor Munsell App</h1>
 
-    <div id="lib-warning" style="display:none" class="lib-warning">
-        ⚠ Munsell library failed to load — color conversion unavailable. Check browser console.
+    <div id="lib-warning" style="display:none" class="alert alert-warn">
+        <span class="alert-icon">⚠</span>
+        <span>Munsell library failed to load — colour conversion unavailable. Check browser console.</span>
     </div>
 
-    <div id="cdn-warning" style="display:none" class="lib-warning">
-        ⚠ <span id="cdn-warning-detail">A required library failed to load.</span> Check your internet connection and reload the page.
+    <div id="cdn-warning" style="display:none" class="alert alert-warn">
+        <span class="alert-icon">⚠</span>
+        <span id="cdn-warning-detail">A required library failed to load.</span>
+        <span> Check your internet connection and reload.</span>
     </div>
 
-    <div class="upload-section">
-        <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
-        <input type="file" id="fileInputGallery" accept="image/*" hidden>
-        <div class="upload-buttons">
-            <button id="open-file-btn" type="button">Take Photo</button>
-            <button id="open-gallery-btn" type="button">Load from Gallery</button>
-        </div>
-        <div class="canvas-wrap">
-            <canvas id="image-canvas"></canvas>
-            <div id="magnifier"></div>
-        </div>
-    </div>
-
-    <div class="sampler-box">
-        <div class="selection-display">
-            <div id="active-color-preview" class="color-preview" style="background: #ccc;"></div>
-            <div>
-                <strong>Selected:</strong> <span id="rgb-val">None</span><br>
-                <small>Estimated Munsell: <span id="munsell-val">N/A</span></small>
+    <!-- Image card -->
+    <div class="card">
+        <div class="card-header">Image</div>
+        <div class="card-body upload-section">
+            <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+            <input type="file" id="fileInputGallery" accept="image/*" hidden>
+            <div class="upload-buttons">
+                <button id="open-file-btn" type="button" class="btn btn-secondary">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 1.5a6.5 6.5 0 110 13A6.5 6.5 0 0110 3.5z"/><circle cx="10" cy="10" r="2.5"/></svg>
+                    Take Photo
+                </button>
+                <button id="open-gallery-btn" type="button" class="btn btn-secondary">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 0v6l3-2 2 3 2-2 3 3V5H5z"/></svg>
+                    Load from Gallery
+                </button>
+            </div>
+            <div class="canvas-wrap" id="canvas-wrap">
+                <canvas id="image-canvas"></canvas>
             </div>
         </div>
-        <div class="smoothing-control">
-            <label class="toggle-label">
-                <input type="checkbox" id="smooth-toggle"> Smoothing
-            </label>
-            <input type="range" id="pixel-slider" min="2" max="20" value="6" step="1" disabled>
-            <span id="pixel-label">Off</span>
-        </div>
-        <div class="controls">
-            <select id="feature-type">
-                <option value="Matrix">Matrix</option>
-                <option value="Redox">Redox Feature</option>
-            </select>
-            <input type="number" id="percent-val" placeholder="% (e.g. 80)" min="0" max="100" step="1">
-            <button class="full-width" onclick="saveSample()">Save Sample to Table</button>
+    </div>
+
+    <!-- Sampler card -->
+    <div class="card">
+        <div class="card-header">Colour Sampler</div>
+        <div class="card-body">
+            <div class="selection-display">
+                <div id="active-color-preview" class="color-preview"></div>
+                <div class="selection-text">
+                    <div class="selection-label">Selected Colour</div>
+                    <div class="selection-rgb" id="rgb-val">—</div>
+                    <div class="selection-munsell" id="munsell-val">No colour selected</div>
+                </div>
+            </div>
+
+            <div class="control-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="smooth-toggle">
+                    <span class="toggle-track"></span>
+                    Gaussian Blur
+                </label>
+                <input type="range" id="pixel-slider" min="1" max="15" value="4" step="1" disabled>
+                <span class="range-label" id="pixel-label">Off</span>
+            </div>
+
+            <div class="control-row">
+                <span class="ctrl-label">Loupe zoom</span>
+                <input type="range" id="loupe-zoom-slider" min="2" max="10" value="4" step="1">
+                <span class="range-label" id="loupe-zoom-label">4×</span>
+            </div>
+
+            <div class="sample-controls">
+                <div class="select-wrap">
+                    <select id="feature-type">
+                        <option value="Matrix">Matrix</option>
+                        <option value="Redox">Redox Feature</option>
+                        <option value="Mottles">Mottles</option>
+                        <option value="Concretions">Concretions</option>
+                    </select>
+                </div>
+                <input type="number" id="percent-val" placeholder="Coverage %" min="0" max="100" step="1">
+                <button class="btn btn-primary full-width" onclick="saveSample()">
+                    Save Sample
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="meta-form">
-        <input type="text" id="sample-id" placeholder="Sample ID">
-        <input type="text" id="site-name" placeholder="Site Name">
-        <input type="text" id="project-name" placeholder="Project Name" class="full-width">
-        <div class="full-width meta-info">
-            <strong>Auto-GPS:</strong> <span id="gps-display">No GPS found in EXIF</span><br>
-            <strong>Date:</strong> <span id="date-display">N/A</span>
+    <!-- Metadata card -->
+    <div class="card">
+        <div class="card-header">Sample Metadata</div>
+        <div class="card-body meta-form">
+            <div class="field">
+                <label class="field-label">Sample ID</label>
+                <input type="text" id="sample-id" placeholder="e.g. S-001">
+            </div>
+            <div class="field">
+                <label class="field-label">Site Name</label>
+                <input type="text" id="site-name" placeholder="e.g. North Paddock">
+            </div>
+            <div class="field full-width">
+                <label class="field-label">Project Name</label>
+                <input type="text" id="project-name" placeholder="e.g. Farm Survey 2025">
+            </div>
+            <div class="meta-readouts full-width">
+                <div class="meta-item">
+                    <span class="meta-icon">📍</span>
+                    <span class="meta-key">GPS</span>
+                    <span class="meta-val" id="gps-display">No GPS in EXIF</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-icon">📅</span>
+                    <span class="meta-key">Date</span>
+                    <span class="meta-val" id="date-display">N/A</span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <table id="results-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Type</th>
-                <th>Munsell</th>
-                <th>%</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-    </table>
-
-    <button class="export-btn" onclick="generateReport()">Generate Soil Sample Report (PDF)</button>
-
-    <div class="export-row">
-        <button class="export-secondary-btn" onclick="exportCSV()">Export CSV</button>
-        <button class="export-secondary-btn" onclick="exportJSON()">Export JSON</button>
-        <button class="clear-btn" onclick="clearSession()">Clear Session</button>
+    <!-- Samples table card -->
+    <div class="card">
+        <div class="card-header">Recorded Samples</div>
+        <div class="table-wrap">
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Type</th>
+                        <th>Munsell Code</th>
+                        <th>Soil Colour Name</th>
+                        <th>Cov.</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr class="table-empty-row" id="table-empty">
+                        <td colspan="6">No samples recorded yet — select a colour and click Save Sample.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
+
+    <!-- Export card -->
+    <div class="card">
+        <div class="card-header">Export</div>
+        <div class="card-body">
+            <button class="btn btn-success full-width" onclick="generateReport()">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm7 0v4h4M8 13h4M8 10h1"/></svg>
+                Generate PDF Report (150 DPI)
+            </button>
+            <div class="export-row">
+                <button class="btn btn-outline" onclick="exportCSV()">Export CSV</button>
+                <button class="btn btn-outline" onclick="exportJSON()">Export JSON</button>
+                <button class="btn btn-danger" onclick="clearSession()">Clear Session</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /.container -->
+
+<!-- Loupe overlay — positioned fixed, drawn via canvas API -->
+<canvas id="loupe" width="240" height="290"></canvas>
 
 <script type="module" src="app.js"></script>
 </body>
