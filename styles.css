@@ -24,6 +24,9 @@
     --shadow-lg:     0 4px 24px rgba(0,0,0,0.12);
 }
 
+/* Ensure [hidden] always wins even when explicit display rules exist */
+[hidden] { display: none !important; }
+
 /* ── Reset / Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
