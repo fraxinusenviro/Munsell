@@ -1,14 +1,10 @@
-// Munsell library loaded dynamically from raw CJS files (ESM CDN transforms
-// fail to bundle the 398KB MRD data tables). Each file is wrapped in a blob
-// URL and loaded via dynamic import() — handles large files correctly in all
-// browsers, unlike new Function() which silently fails on WebKit for ~400KB bodies.
+// Munsell library loaded dynamically from raw CJS files.
 let munsell = null;
 let libraryOk = false;
 
-const MUNSELL_BASE = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
+const MUNSELL_BASE  = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
 const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'convert', 'invert', 'index'];
 
-// Soil color chips from the Munsell Soil Color Book.
 const SOIL_CHIPS = {
   '10R 2.5/1':'Reddish Black','10R 2.5/2':'Very Dusky Red',
   '10R 3/1':'Dark Reddish Gray','10R 3/2':'Dusky Red','10R 3/3':'Dusky Red','10R 3/4':'Dusky Red','10R 3/6':'Dark Red',
@@ -92,114 +88,137 @@ async function initMunsell() {
     const modules = {};
     const CACHE_KEY = '__munsellModuleCache';
     window[CACHE_KEY] = modules;
-
     try {
         for (const name of MUNSELL_FILES) {
             const text = await fetch(MUNSELL_BASE + name + '.js').then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status} fetching munsell/${name}.js`);
                 return r.text();
             });
-
             const blob = new Blob([
                 `const exports={};\n` +
                 `const require=d=>window.${CACHE_KEY}[d.replace('./','')];\n` +
-                text + '\n' +
-                `export default exports;`
+                text + '\nexport default exports;'
             ], { type: 'text/javascript' });
-
-            const blobUrl = URL.createObjectURL(blob);
-            try {
-                const mod = await import(blobUrl);
-                modules[name] = mod.default;
-            } finally {
-                URL.revokeObjectURL(blobUrl);
-            }
+            const url = URL.createObjectURL(blob);
+            try { const mod = await import(url); modules[name] = mod.default; }
+            finally { URL.revokeObjectURL(url); }
         }
-
         delete window[CACHE_KEY];
         munsell = modules['index'];
-
-        if (typeof munsell.rgb255ToMunsell !== 'function') {
-            throw new Error('rgb255ToMunsell missing. Keys: ' + Object.keys(munsell).join(', '));
-        }
+        if (typeof munsell.rgb255ToMunsell !== 'function')
+            throw new Error('rgb255ToMunsell missing');
         libraryOk = true;
         buildChipLabCache();
-        console.info(`[munsell] Loaded OK — ${chipLabCache.length} soil chips cached`);
+        console.info(`[munsell] OK — ${chipLabCache.length} chips cached`);
     } catch (e) {
         delete window[CACHE_KEY];
-        console.error('[munsell] Failed to load:', e);
+        console.error('[munsell] Failed:', e);
         document.getElementById('lib-warning').style.display = 'flex';
     }
 }
-
 initMunsell();
 
-// ===== DOM refs =====
-const canvas      = document.getElementById('image-canvas');
-const ctx         = canvas.getContext('2d', { willReadFrequently: true });
+// ── DOM refs ──
+const canvas          = document.getElementById('image-canvas');
+const ctx             = canvas.getContext('2d', { willReadFrequently: true });
+const sampleCanvas    = document.createElement('canvas');
+const sampleCtx       = sampleCanvas.getContext('2d', { willReadFrequently: true });
+const magnifierCanvas = document.getElementById('magnifier-canvas');
+const magnifierCtx    = magnifierCanvas.getContext('2d');
+const canvasWrap      = document.getElementById('canvas-wrap');
+const canvasPlaceholder = document.getElementById('canvas-placeholder');
 
-const sampleCanvas = document.createElement('canvas');
-const sampleCtx    = sampleCanvas.getContext('2d', { willReadFrequently: true });
+const fileInput        = document.getElementById('fileInput');
+const fileInputGallery = document.getElementById('fileInputGallery');
+const openFileBtn      = document.getElementById('open-file-btn');
+const openGalleryBtn   = document.getElementById('open-gallery-btn');
+const addImageBtn      = document.getElementById('add-image-btn');
+const addImageMenu     = document.getElementById('add-image-menu');
+const addImageWrap     = document.getElementById('add-image-wrap');
+const hamburgerBtn     = document.getElementById('hamburger-btn');
+const hamburgerPanel   = document.getElementById('hamburger-panel');
+const panelOverlay     = document.getElementById('panel-overlay');
+const closePanelBtn    = document.getElementById('close-panel-btn');
+const eyedropperBtn    = document.getElementById('eyedropper-btn');
+const zoomResetBtn     = document.getElementById('zoom-reset-btn');
+const magPositionBtn   = document.getElementById('mag-position-btn');
+const magPosIconDown   = document.getElementById('mag-pos-icon-down');
+const magPosIconUp     = document.getElementById('mag-pos-icon-up');
+const appBody          = document.getElementById('app-body');
+const magnifierSection = document.getElementById('magnifier-section');
 
-const loupeCanvas = document.getElementById('loupe');
-const loupeCtx    = loupeCanvas.getContext('2d');
+const magColorSwatch  = document.getElementById('mag-color-swatch');
+const magMunsell      = document.getElementById('mag-munsell');
+const magRgb          = document.getElementById('mag-rgb');
+const loupeZoomSlider = document.getElementById('loupe-zoom-slider');
+const loupeZoomLabel  = document.getElementById('loupe-zoom-label');
+const magLinkedToggle = document.getElementById('mag-linked-toggle');
 
-const fileInput         = document.getElementById('fileInput');
-const fileInputGallery  = document.getElementById('fileInputGallery');
-const openFileBtn       = document.getElementById('open-file-btn');
-const openGalleryBtn    = document.getElementById('open-gallery-btn');
+const featureType     = document.getElementById('feature-type');
+const percentValue    = document.getElementById('percent-val');
+const tableBody       = document.getElementById('table-body');
+const tableEmpty      = document.getElementById('table-empty');
 
-const activeColorPreview = document.getElementById('active-color-preview');
-const rgbValue           = document.getElementById('rgb-val');
-const munsellValue       = document.getElementById('munsell-val');
-
-const featureType   = document.getElementById('feature-type');
-const percentValue  = document.getElementById('percent-val');
-const tableBody     = document.getElementById('table-body');
-const tableEmpty    = document.getElementById('table-empty');
-
-const sampleIdInput   = document.getElementById('sample-id');
-const siteNameInput   = document.getElementById('site-name');
+const sampleIdInput    = document.getElementById('sample-id');
+const siteNameInput    = document.getElementById('site-name');
 const projectNameInput = document.getElementById('project-name');
-const gpsDisplay      = document.getElementById('gps-display');
-const dateDisplay     = document.getElementById('date-display');
+const gpsDisplay       = document.getElementById('gps-display');
+const dateDisplay      = document.getElementById('date-display');
 
-const pixelSlider       = document.getElementById('pixel-slider');
-const pixelLabel        = document.getElementById('pixel-label');
-const smoothToggle      = document.getElementById('smooth-toggle');
-const loupeZoomSlider   = document.getElementById('loupe-zoom-slider');
-const loupeZoomLabel    = document.getElementById('loupe-zoom-label');
+const pixelSlider    = document.getElementById('pixel-slider');
+const pixelLabel     = document.getElementById('pixel-label');
+const smoothToggle   = document.getElementById('smooth-toggle');
 
-// ===== State =====
-let samples            = [];
-let currentRGB         = null;
+const sampleModal    = document.getElementById('sample-modal');
+const modalSaveBtn   = document.getElementById('modal-save-btn');
+const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const modalCloseBtn  = document.getElementById('modal-close-btn');
+const modalSwatch    = document.getElementById('modal-color-swatch');
+const modalMunsell   = document.getElementById('modal-munsell');
+const modalRgb       = document.getElementById('modal-rgb');
+const percentInfo    = document.getElementById('percent-info');
+
+// ── State ──
+let samples             = [];
+let currentRGB          = null;
 let currentMunsellResult = null;
-let metadata           = { lat: '', lng: '', date: '' };
-let baseImage          = null;
-let crosshair          = { x: null, y: null };
-let blurRadius         = 4;
-let smoothingEnabled   = false;
-let loupeZoom          = 4;
-let lastClientPos      = { x: 0, y: 0 };
-let chipLabCache       = [];
+let metadata            = { lat: '', lng: '', date: '' };
+let baseImage           = null;
+let crosshair           = { x: null, y: null };   // in sampleCanvas pixel coords
+let blurRadius          = 4;
+let smoothingEnabled    = false;
+let magnifierZoom       = 4;
+let magnifierLinked     = true;
+let magnifierBelow      = false;
+let chipLabCache        = [];
 let smoothDebounceTimer = null;
+
+// Zoom / pan state (for main image)
+let viewZoom   = 1;
+let viewPanX   = 0;     // top-left of viewport in sampleCanvas px
+let viewPanY   = 0;
+let isPanning  = false;
+let panLastX   = 0;
+let panLastY   = 0;
+let mouseDownPos = null;
+let mouseDragged = false;
+let lastPinchDist    = null;
+let lastPinchCenterX = 0;
+let lastPinchCenterY = 0;
 
 const STORAGE_KEY = 'munsell_session';
 
-// ===== Chip Lab cache =====
+// ── Chip Lab cache ──
 function buildChipLabCache() {
     chipLabCache = [];
     for (const [code, name] of Object.entries(SOIL_CHIPS)) {
         try {
             const lab = munsell.munsellToLab(code);
             chipLabCache.push({ code, name, lab });
-        } catch (e) {
-            console.warn(`[chips] Lab failed for ${code}:`, e.message);
-        }
+        } catch { /* skip bad chips */ }
     }
 }
 
-// Standard sRGB → CIELab D65
 function rgbToLab(r, g, b) {
     const lin = c => { c /= 255; return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92; };
     const lr = lin(r), lg = lin(g), lb = lin(b);
@@ -211,7 +230,6 @@ function rgbToLab(r, g, b) {
     return [116 * fy - 16, 500 * (f(X / 0.95047) - fy), 200 * (fy - f(Z / 1.08883))];
 }
 
-// Find nearest soil chip by CIE76 delta-E
 function getNearestChip(r, g, b) {
     if (!libraryOk || chipLabCache.length === 0) return { code: null, name: null, libError: true };
     const lab = rgbToLab(r, g, b);
@@ -225,10 +243,10 @@ function getNearestChip(r, g, b) {
                    : { code: null, name: null, libError: true };
 }
 
-// ===== Gaussian blur =====
+// ── Gaussian blur ──
 function gaussianKernel(sigma) {
     const radius = Math.min(Math.ceil(2.5 * sigma), 30);
-    const size   = radius * 2 + 1;
+    const size = radius * 2 + 1;
     const kernel = new Float32Array(size);
     let sum = 0;
     for (let i = 0; i < size; i++) {
@@ -246,51 +264,37 @@ function applyGaussianBlur() {
     src.width = w; src.height = h;
     src.getContext('2d').drawImage(baseImage, 0, 0, w, h);
     const srcPx = src.getContext('2d').getImageData(0, 0, w, h).data;
-
     const sigma = Math.max(0.5, blurRadius * 0.6);
     const { kernel, radius } = gaussianKernel(sigma);
     const tmp = new Float32Array(w * h * 4);
     const out = new Uint8ClampedArray(w * h * 4);
-
-    // Horizontal pass
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             let r = 0, g = 0, b = 0;
-            for (let k = 0, kLen = kernel.length; k < kLen; k++) {
+            for (let k = 0; k < kernel.length; k++) {
                 const sx = Math.max(0, Math.min(w - 1, x + k - radius));
                 const si = (y * w + sx) * 4;
-                const wt = kernel[k];
-                r += srcPx[si]   * wt;
-                g += srcPx[si+1] * wt;
-                b += srcPx[si+2] * wt;
+                r += srcPx[si] * kernel[k]; g += srcPx[si+1] * kernel[k]; b += srcPx[si+2] * kernel[k];
             }
             const di = (y * w + x) * 4;
             tmp[di] = r; tmp[di+1] = g; tmp[di+2] = b; tmp[di+3] = 255;
         }
     }
-
-    // Vertical pass
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             let r = 0, g = 0, b = 0;
-            for (let k = 0, kLen = kernel.length; k < kLen; k++) {
+            for (let k = 0; k < kernel.length; k++) {
                 const sy = Math.max(0, Math.min(h - 1, y + k - radius));
                 const si = (sy * w + x) * 4;
-                const wt = kernel[k];
-                r += tmp[si]   * wt;
-                g += tmp[si+1] * wt;
-                b += tmp[si+2] * wt;
+                r += tmp[si] * kernel[k]; g += tmp[si+1] * kernel[k]; b += tmp[si+2] * kernel[k];
             }
             const di = (y * w + x) * 4;
             out[di] = r; out[di+1] = g; out[di+2] = b; out[di+3] = 255;
         }
     }
-
     sampleCtx.putImageData(new ImageData(out, w, h), 0, 0);
 }
 
-// Rebuild sampleCanvas — called when image loads or smoothing settings change.
-// redrawCanvas() just composites sampleCanvas onto ctx (cheap on every mouse move).
 function rebuildSampleCanvas() {
     if (!baseImage) return;
     if (!smoothingEnabled) {
@@ -300,16 +304,88 @@ function rebuildSampleCanvas() {
     }
 }
 
-// ===== Persistence =====
+// ── Viewport / zoom helpers ──
+function getViewport() {
+    const w = sampleCanvas.width, h = sampleCanvas.height;
+    const srcW = w / viewZoom;
+    const srcH = h / viewZoom;
+    const srcX = Math.max(0, Math.min(w - srcW, viewPanX));
+    const srcY = Math.max(0, Math.min(h - srcH, viewPanY));
+    return { srcX, srcY, srcW, srcH };
+}
+
+function clampPan() {
+    const w = sampleCanvas.width, h = sampleCanvas.height;
+    const srcW = w / viewZoom, srcH = h / viewZoom;
+    viewPanX = Math.max(0, Math.min(w - srcW, viewPanX));
+    viewPanY = Math.max(0, Math.min(h - srcH, viewPanY));
+}
+
+// Convert a point in canvas display coords → sampleCanvas pixel coords
+function displayToImage(dx, dy) {
+    const rect = canvas.getBoundingClientRect();
+    // Display coords → canvas intrinsic coords (accounts for CSS scaling)
+    const px = dx / rect.width  * canvas.width;
+    const py = dy / rect.height * canvas.height;
+    // Canvas intrinsic → sampleCanvas (same resolution, then apply viewport)
+    const { srcX, srcY, srcW, srcH } = getViewport();
+    return {
+        x: Math.floor(srcX + px / canvas.width  * srcW),
+        y: Math.floor(srcY + py / canvas.height * srcH),
+    };
+}
+
+// Convert sampleCanvas pixel coords → canvas display coords (relative to canvas element)
+function imageToDisplayPx(ix, iy) {
+    const { srcX, srcY, srcW, srcH } = getViewport();
+    return {
+        x: (ix - srcX) / srcW * canvas.width,
+        y: (iy - srcY) / srcH * canvas.height,
+    };
+}
+
+function applyZoom(factor, clientX, clientY) {
+    if (!baseImage) return;
+    const newZoom = Math.max(1, Math.min(10, viewZoom * factor));
+    if (newZoom === viewZoom) return;
+
+    const rect    = canvas.getBoundingClientRect();
+    const normX   = (clientX - rect.left) / rect.width;
+    const normY   = (clientY - rect.top)  / rect.height;
+    const { srcX, srcY, srcW, srcH } = getViewport();
+    const fixedX  = srcX + normX * srcW;
+    const fixedY  = srcY + normY * srcH;
+
+    viewZoom = newZoom;
+    const newSrcW = sampleCanvas.width  / viewZoom;
+    const newSrcH = sampleCanvas.height / viewZoom;
+    viewPanX = fixedX - normX * newSrcW;
+    viewPanY = fixedY - normY * newSrcH;
+    clampPan();
+
+    zoomResetBtn.hidden = viewZoom <= 1.01;
+    redrawCanvas();
+    drawMagnifier();
+}
+
+function resetZoom() {
+    viewZoom = 1; viewPanX = 0; viewPanY = 0;
+    zoomResetBtn.hidden = true;
+    redrawCanvas();
+    drawMagnifier();
+}
+
+// ── Persistence ──
 function saveToStorage() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             samples, metadata,
             formFields: {
-                sampleId: sampleIdInput.value,
-                siteName: siteNameInput.value,
+                sampleId:    sampleIdInput.value,
+                siteName:    siteNameInput.value,
                 projectName: projectNameInput.value,
-            }
+            },
+            magnifierBelow,
         }));
     } catch (e) { console.warn('[storage] Save failed:', e); }
 }
@@ -333,6 +409,7 @@ function loadFromStorage() {
             siteNameInput.value    = state.formFields.siteName    || '';
             projectNameInput.value = state.formFields.projectName || '';
         }
+        if (state.magnifierBelow) setMagnifierBelow(true);
     } catch (e) { console.warn('[storage] Load failed:', e); }
 }
 
@@ -346,33 +423,95 @@ function clearSession() {
     currentRGB = currentMunsellResult = baseImage = null;
     crosshair = { x: null, y: null };
     canvas.width = canvas.height = 0;
-    loupeCanvas.style.display = 'none';
-    munsellValue.textContent = 'No colour selected';
-    rgbValue.textContent = '—';
-    activeColorPreview.style.background = '#d4c5bb';
+    canvasPlaceholder.style.display = '';
+    eyedropperBtn.hidden = true;
+    resetZoom();
+    magColorSwatch.style.background = '#d4c5bb';
+    magMunsell.textContent = 'No colour selected';
+    magRgb.textContent = '—';
     updateTable();
     localStorage.removeItem(STORAGE_KEY);
+    closeHamburger();
+    drawMagnifierPlaceholder();
 }
 
 loadFromStorage();
 
-// ===== Event listeners =====
-openFileBtn.addEventListener('click', () => fileInput.click());
-openGalleryBtn.addEventListener('click', () => fileInputGallery.click());
+// ── UI: hamburger panel ──
+function openHamburger() {
+    hamburgerPanel.hidden = false;
+    panelOverlay.hidden   = false;
+    requestAnimationFrame(() => hamburgerPanel.removeAttribute('hidden'));
+}
+
+function closeHamburger() {
+    hamburgerPanel.hidden = true;
+    panelOverlay.hidden   = true;
+}
+
+hamburgerBtn.addEventListener('click', openHamburger);
+closePanelBtn.addEventListener('click', closeHamburger);
+panelOverlay.addEventListener('click', closeHamburger);
+
+// ── UI: (+) add image menu ──
+function openAddMenu() {
+    addImageMenu.hidden = false;
+    setTimeout(() => document.addEventListener('click', closeAddMenuOutside), 0);
+}
+
+function closeAddMenu() {
+    addImageMenu.hidden = true;
+    document.removeEventListener('click', closeAddMenuOutside);
+}
+
+function closeAddMenuOutside(e) {
+    if (!addImageWrap.contains(e.target)) closeAddMenu();
+}
+
+addImageBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    addImageMenu.hidden ? openAddMenu() : closeAddMenu();
+});
+
+openFileBtn.addEventListener('click', ()    => { closeAddMenu(); fileInput.click(); });
+openGalleryBtn.addEventListener('click', () => { closeAddMenu(); fileInputGallery.click(); });
 fileInput.addEventListener('change', onFileChange);
 fileInputGallery.addEventListener('change', onFileChange);
 
+// ── UI: magnifier position toggle ──
+function setMagnifierBelow(below) {
+    magnifierBelow = below;
+    if (below) {
+        appBody.classList.add('mag-below');
+        magPosIconDown.style.display = 'none';
+        magPosIconUp.style.display   = '';
+        magPositionBtn.title         = 'Move magnifier above image';
+    } else {
+        appBody.classList.remove('mag-below');
+        magPosIconDown.style.display = '';
+        magPosIconUp.style.display   = 'none';
+        magPositionBtn.title         = 'Move magnifier below image';
+    }
+}
+
+magPositionBtn.addEventListener('click', () => {
+    setMagnifierBelow(!magnifierBelow);
+    saveToStorage();
+});
+
+// ── UI: form fields ──
 [sampleIdInput, siteNameInput, projectNameInput].forEach(el => {
     el.addEventListener('input', saveToStorage);
 });
 
+// ── UI: blur controls ──
 smoothToggle.addEventListener('change', () => {
     smoothingEnabled = smoothToggle.checked;
     pixelSlider.disabled = !smoothingEnabled;
     pixelLabel.textContent = smoothingEnabled ? `${blurRadius}px` : 'Off';
     rebuildSampleCanvas();
     redrawCanvas();
-    if (crosshair.x !== null) drawLoupe(lastClientPos.x, lastClientPos.y);
+    drawMagnifier();
 });
 
 pixelSlider.addEventListener('input', () => {
@@ -382,41 +521,23 @@ pixelSlider.addEventListener('input', () => {
     smoothDebounceTimer = setTimeout(() => {
         rebuildSampleCanvas();
         redrawCanvas();
-        if (crosshair.x !== null) drawLoupe(lastClientPos.x, lastClientPos.y);
+        drawMagnifier();
     }, 80);
 });
 
+// ── UI: magnifier zoom & linked ──
 loupeZoomSlider.addEventListener('input', () => {
-    loupeZoom = parseInt(loupeZoomSlider.value, 10);
-    loupeZoomLabel.textContent = `${loupeZoom}×`;
-    if (crosshair.x !== null) drawLoupe(lastClientPos.x, lastClientPos.y);
+    magnifierZoom = parseInt(loupeZoomSlider.value, 10);
+    loupeZoomLabel.textContent = `${magnifierZoom}×`;
+    drawMagnifier();
 });
 
-canvas.addEventListener('mousemove', handleSampling);
-canvas.addEventListener('mousedown', handleSampling);
-canvas.addEventListener('mouseleave', () => {
-    loupeCanvas.style.display = 'none';
-});
-canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    handleSampling(e.touches[0]);
-}, { passive: false });
-canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    handleSampling(e.touches[0]);
-}, { passive: false });
-canvas.addEventListener('touchend', () => {
-    loupeCanvas.style.display = 'none';
+magLinkedToggle.addEventListener('change', () => {
+    magnifierLinked = magLinkedToggle.checked;
+    drawMagnifier();
 });
 
-window.saveSample    = saveSample;
-window.deleteSample  = deleteSample;
-window.generateReport = generateReport;
-window.exportCSV     = exportCSV;
-window.exportJSON    = exportJSON;
-window.clearSession  = clearSession;
-
-// ===== File handling =====
+// ── File handling ──
 async function onFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -434,43 +555,58 @@ async function onFileChange(e) {
             gpsDisplay.innerText = 'No GPS in EXIF';
         }
         dateDisplay.innerText = metadata.date;
-    } catch (err) { console.log('EXIF Error:', err); }
+    } catch { /* EXIF optional */ }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (ev) => {
         const img = new Image();
         img.onload = () => {
-            const scale = Math.min(800 / img.width, 1);
+            // Cap at 1200px width to keep performance reasonable
+            const scale = Math.min(1200 / img.width, 1);
             canvas.width  = Math.round(img.width  * scale);
             canvas.height = Math.round(img.height * scale);
             sampleCanvas.width  = canvas.width;
             sampleCanvas.height = canvas.height;
 
             baseImage = img;
+            resetZoom();
             rebuildSampleCanvas();
-            redrawCanvas();
 
+            // Centre crosshair
             crosshair = { x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2) };
-            const rect = canvas.getBoundingClientRect();
-            updateSelectionAt(
-                crosshair.x, crosshair.y,
-                rect.left + crosshair.x,
-                rect.top  + crosshair.y
-            );
+            samplePixelAt(crosshair.x, crosshair.y);
+
+            canvasPlaceholder.style.display = 'none';
+            eyedropperBtn.hidden = false;
+
+            // Resize magnifier canvas to match display width after layout
+            requestAnimationFrame(() => {
+                resizeMagnifierCanvas();
+                redrawCanvas();
+                drawMagnifier();
+            });
+
             saveToStorage();
         };
-        img.src = event.target.result;
+        img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+    e.target.value = '';  // allow re-selecting same file
 }
 
-// ===== Canvas drawing =====
+// ── Canvas drawing ──
 function redrawCanvas() {
     if (!baseImage) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(sampleCanvas, 0, 0);
+    const { srcX, srcY, srcW, srcH } = getViewport();
+    ctx.drawImage(sampleCanvas, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
     drawSampleMarkers();
-    if (crosshair.x !== null && crosshair.y !== null) drawCrosshair(crosshair.x, crosshair.y);
+    if (crosshair.x !== null) {
+        const dp = imageToDisplayPx(crosshair.x, crosshair.y);
+        if (dp.x >= 0 && dp.x <= canvas.width && dp.y >= 0 && dp.y <= canvas.height) {
+            drawCrosshair(dp.x, dp.y);
+        }
+    }
 }
 
 function drawCrosshair(x, y) {
@@ -492,290 +628,363 @@ function drawCrosshair(x, y) {
 }
 
 function drawSampleMarkers() {
-    const R = 20;
+    const R = 18;
     samples.forEach((s) => {
+        const dp = imageToDisplayPx(s.x, s.y);
+        if (dp.x < -R || dp.x > canvas.width + R || dp.y < -R || dp.y > canvas.height + R) return;
         ctx.save();
-
-        // Outer glow
-        ctx.shadowColor = 'rgba(0,0,0,0.7)';
-        ctx.shadowBlur  = 14;
-        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-        ctx.lineWidth   = 5;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, R, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Coloured ring (actual soil colour)
-        ctx.shadowBlur  = 0;
-        ctx.strokeStyle = s.rgb;
-        ctx.lineWidth   = 4;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, R, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // White halo ring
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.lineWidth   = 1.5;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, R + 4, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dark semi-transparent fill
+        ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 12;
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, R, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = s.rgb; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, R, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, R + 3, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = 'rgba(0,0,0,0.42)';
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, R - 1, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Sample number
-        ctx.fillStyle  = 'white';
-        ctx.font       = 'bold 13px system-ui, sans-serif';
-        ctx.textAlign  = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-        ctx.shadowBlur   = 4;
-        ctx.fillText(String(s.number), s.x, s.y);
-
-        // Munsell code label below
-        ctx.font         = '10px system-ui, sans-serif';
-        ctx.textBaseline = 'top';
-        ctx.shadowBlur   = 3;
-        ctx.fillText(s.munsell || '?', s.x, s.y + R + 6);
-
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, R - 1, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'white'; ctx.font = 'bold 12px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+        ctx.fillText(String(s.number), dp.x, dp.y);
+        ctx.font = '9px system-ui, sans-serif'; ctx.textBaseline = 'top'; ctx.shadowBlur = 3;
+        ctx.fillText(s.munsell || '?', dp.x, dp.y + R + 4);
         ctx.restore();
     });
 }
 
-// ===== Loupe (canvas magnifying glass with handle) =====
-// Geometry: 240×290 canvas. Glass circle centre (110,115) radius 105.
-// Handle extends from glass edge at ~135° to canvas bottom-right (~handle tip).
-// Positioned so bottom-right corner tracks the cursor → glass is above cursor.
-const L_W = 240, L_H = 290;
-const CX = 110, CY = 115, CR = 105; // glass centre / radius
-
-function drawLoupe(clientX, clientY) {
-    if (!baseImage) return;
-
-    // Position loupe: handle tip (bottom-right of canvas) ≈ cursor
-    let left = clientX - L_W + 8;
-    let top  = clientY - L_H + 8;
-    // Viewport clamp
-    left = Math.max(5, Math.min(window.innerWidth  - L_W - 5, left));
-    top  = Math.max(5, Math.min(window.innerHeight - L_H - 5, top));
-
-    loupeCanvas.style.left    = `${left}px`;
-    loupeCanvas.style.top     = `${top}px`;
-    loupeCanvas.style.display = 'block';
-
-    const lc = loupeCtx;
-    lc.clearRect(0, 0, L_W, L_H);
-
-    // --- Handle ---
-    lc.save();
-    const hGrad = lc.createLinearGradient(180, 190, 232, 282);
-    hGrad.addColorStop(0,   '#607d8b');
-    hGrad.addColorStop(0.5, '#37474f');
-    hGrad.addColorStop(1,   '#263238');
-    lc.strokeStyle = hGrad;
-    lc.lineWidth   = 24;
-    lc.lineCap     = 'round';
-    lc.beginPath();
-    lc.moveTo(183, 192);
-    lc.lineTo(230, 280);
-    lc.stroke();
-
-    // Handle highlight
-    const hHi = lc.createLinearGradient(180, 190, 232, 282);
-    hHi.addColorStop(0, 'rgba(255,255,255,0.2)');
-    hHi.addColorStop(1, 'rgba(255,255,255,0.04)');
-    lc.strokeStyle = hHi;
-    lc.lineWidth   = 8;
-    lc.beginPath();
-    lc.moveTo(177, 190);
-    lc.lineTo(223, 277);
-    lc.stroke();
-
-    // Grip dots
-    [[198, 210], [209, 228], [220, 248]].forEach(([dx, dy]) => {
-        lc.beginPath();
-        lc.arc(dx, dy, 3.5, 0, Math.PI * 2);
-        lc.fillStyle = 'rgba(255,255,255,0.45)';
-        lc.fill();
-    });
-    lc.restore();
-
-    // --- Clip to glass circle ---
-    lc.save();
-    lc.beginPath();
-    lc.arc(CX, CY, CR, 0, Math.PI * 2);
-    lc.clip();
-
-    // Magnified content from sampleCanvas
-    const srcW = Math.max(1, Math.round(CR * 2 / loupeZoom));
-    const srcH = Math.max(1, Math.round(CR * 2 / loupeZoom));
-    const rawSrcX = crosshair.x - Math.floor(srcW / 2);
-    const rawSrcY = crosshair.y - Math.floor(srcH / 2);
-    const srcX = Math.max(0, Math.min(sampleCanvas.width  - srcW, rawSrcX));
-    const srcY = Math.max(0, Math.min(sampleCanvas.height - srcH, rawSrcY));
-
-    lc.imageSmoothingEnabled = false;
-    lc.drawImage(sampleCanvas, srcX, srcY, srcW, srcH,
-        CX - CR, CY - CR, CR * 2, CR * 2);
-
-    // Munsell badge at top of glass
-    if (currentRGB && currentMunsellResult && !currentMunsellResult.libError) {
-        const bx = CX - 78, by = CY - CR + 10, bw = 156, bh = 26;
-        lc.beginPath();
-        lc.roundRect(bx, by, bw, bh, 7);
-        lc.fillStyle = 'rgba(0,0,0,0.68)';
-        lc.fill();
-
-        // Colour swatch
-        lc.beginPath();
-        lc.roundRect(bx + 5, by + 5, 16, 16, 3);
-        lc.fillStyle = `rgb(${currentRGB[0]},${currentRGB[1]},${currentRGB[2]})`;
-        lc.fill();
-        lc.strokeStyle = 'rgba(255,255,255,0.35)';
-        lc.lineWidth   = 0.8;
-        lc.stroke();
-
-        // Munsell code
-        lc.fillStyle    = 'white';
-        lc.font         = 'bold 10.5px system-ui, sans-serif';
-        lc.textAlign    = 'left';
-        lc.textBaseline = 'middle';
-        lc.fillText(currentMunsellResult.code, bx + 26, by + 13);
-
-        // Soil name (dimmer, smaller)
-        const codeWidth = lc.measureText(currentMunsellResult.code).width;
-        lc.fillStyle = 'rgba(255,255,255,0.65)';
-        lc.font      = '8.5px system-ui, sans-serif';
-        const nameX  = bx + 26 + codeWidth + 6;
-        const availW = bw - (nameX - bx) - 5;
-        if (availW > 20) lc.fillText(currentMunsellResult.name, nameX, by + 13);
-    }
-
-    // Crosshairs in glass centre
-    lc.strokeStyle = 'rgba(255,255,255,0.88)';
-    lc.lineWidth   = 1.5;
-    lc.beginPath();
-    lc.moveTo(CX - 16, CY); lc.lineTo(CX - 5,  CY);
-    lc.moveTo(CX + 5,  CY); lc.lineTo(CX + 16, CY);
-    lc.moveTo(CX, CY - 16); lc.lineTo(CX, CY - 5);
-    lc.moveTo(CX, CY + 5);  lc.lineTo(CX, CY + 16);
-    lc.stroke();
-
-    // Centre dot
-    lc.beginPath();
-    lc.arc(CX, CY, 2.5, 0, Math.PI * 2);
-    lc.fillStyle = 'rgba(255,255,255,0.9)';
-    lc.fill();
-
-    lc.restore(); // end clip
-
-    // --- Bezel rim ---
-    lc.save();
-    lc.shadowColor   = 'rgba(0,0,0,0.5)';
-    lc.shadowBlur    = 14;
-    lc.shadowOffsetY = 3;
-
-    const bezelGrad = lc.createLinearGradient(CX - CR, CY - CR, CX + CR, CY + CR);
-    bezelGrad.addColorStop(0,    '#f0f0f0');
-    bezelGrad.addColorStop(0.25, '#d0d0d0');
-    bezelGrad.addColorStop(0.6,  '#a0a0a0');
-    bezelGrad.addColorStop(1,    '#e0e0e0');
-
-    lc.beginPath();
-    lc.arc(CX, CY, CR + 2, 0, Math.PI * 2);
-    lc.strokeStyle = bezelGrad;
-    lc.lineWidth   = 7;
-    lc.stroke();
-    lc.restore();
-
-    // Inner shadow ring
-    lc.beginPath();
-    lc.arc(CX, CY, CR - 1, 0, Math.PI * 2);
-    lc.strokeStyle = 'rgba(0,0,0,0.3)';
-    lc.lineWidth   = 3;
-    lc.stroke();
+// ── Magnifier pane ──
+function resizeMagnifierCanvas() {
+    const wrap = magnifierCanvas.parentElement;
+    const w = Math.max(100, wrap.clientWidth || canvasWrap.clientWidth || 300);
+    magnifierCanvas.width  = w;
+    magnifierCanvas.height = 130;
+    drawMagnifier();
 }
 
-// ===== Sampling =====
-function handleSampling(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x    = Math.floor((e.clientX || e.pageX) - rect.left);
-    const y    = Math.floor((e.clientY || e.pageY) - rect.top);
-    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) {
-        loupeCanvas.style.display = 'none';
+function drawMagnifierPlaceholder() {
+    const mw = magnifierCanvas.width  || 300;
+    const mh = magnifierCanvas.height || 130;
+    const mc = magnifierCtx;
+    mc.clearRect(0, 0, mw, mh);
+    mc.fillStyle = '#1a0e0a';
+    mc.fillRect(0, 0, mw, mh);
+    mc.fillStyle = 'rgba(255,255,255,0.2)';
+    mc.font = '13px system-ui, sans-serif';
+    mc.textAlign = 'center';
+    mc.textBaseline = 'middle';
+    mc.fillText('Touch the image to sample a colour', mw / 2, mh / 2);
+}
+
+function drawMagnifier() {
+    const mw = magnifierCanvas.width;
+    const mh = magnifierCanvas.height;
+    if (!mw || !mh) return;
+    const mc = magnifierCtx;
+
+    if (!baseImage || crosshair.x === null) {
+        drawMagnifierPlaceholder();
         return;
     }
-    updateSelectionAt(x, y, e.clientX, e.clientY);
-}
 
-function updateSelectionAt(x, y, clientX, clientY) {
-    crosshair = { x, y };
-    lastClientPos = { x: clientX, y: clientY };
-    redrawCanvas();
+    const effectiveZoom = magnifierLinked ? magnifierZoom * viewZoom : magnifierZoom;
+    const srcW = Math.max(1, mw / effectiveZoom);
+    const srcH = Math.max(1, mh / effectiveZoom);
+    const srcX = Math.max(0, Math.min(sampleCanvas.width  - srcW, crosshair.x - srcW / 2));
+    const srcY = Math.max(0, Math.min(sampleCanvas.height - srcH, crosshair.y - srcH / 2));
 
-    const [r, g, b] = getAveragePixel(x, y, 0);
-    currentRGB = [r, g, b];
+    mc.imageSmoothingEnabled = false;
+    mc.drawImage(sampleCanvas, srcX, srcY, srcW, srcH, 0, 0, mw, mh);
 
-    activeColorPreview.style.background = `rgb(${r},${g},${b})`;
-    rgbValue.textContent = `rgb(${r}, ${g}, ${b})`;
+    // Crosshairs
+    const cx = mw / 2, cy = mh / 2;
+    mc.strokeStyle = 'rgba(255,255,255,0.85)'; mc.lineWidth = 1.5;
+    mc.beginPath();
+    mc.moveTo(cx - 22, cy); mc.lineTo(cx - 6, cy);
+    mc.moveTo(cx + 6,  cy); mc.lineTo(cx + 22, cy);
+    mc.moveTo(cx, cy - 22); mc.lineTo(cx, cy - 6);
+    mc.moveTo(cx, cy + 6);  mc.lineTo(cx, cy + 22);
+    mc.stroke();
+    mc.strokeStyle = 'rgba(0,0,0,0.5)'; mc.lineWidth = 1;
+    mc.beginPath(); mc.arc(cx, cy, 7, 0, Math.PI * 2); mc.stroke();
+    mc.beginPath(); mc.arc(cx, cy, 2, 0, Math.PI * 2);
+    mc.fillStyle = 'rgba(255,255,255,0.9)'; mc.fill();
 
-    currentMunsellResult = getNearestChip(r, g, b);
-    if (currentMunsellResult.libError) {
-        munsellValue.textContent = '⚠ Library not loaded';
-        munsellValue.classList.add('out-of-gamut');
-    } else {
-        munsellValue.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
-        munsellValue.classList.remove('out-of-gamut');
+    // Munsell badge at bottom
+    if (currentRGB && currentMunsellResult && !currentMunsellResult.libError) {
+        const [r, g, b] = currentRGB;
+        const badgeH = 26, by = mh - badgeH;
+        mc.fillStyle = 'rgba(0,0,0,0.7)';
+        mc.fillRect(0, by, mw, badgeH);
+        mc.fillStyle = `rgb(${r},${g},${b})`;
+        mc.fillRect(8, by + 5, 16, 16);
+        mc.strokeStyle = 'rgba(255,255,255,0.3)'; mc.lineWidth = 1;
+        mc.strokeRect(8, by + 5, 16, 16);
+        mc.fillStyle = 'white'; mc.font = 'bold 10.5px system-ui, sans-serif';
+        mc.textAlign = 'left'; mc.textBaseline = 'middle';
+        mc.fillText(currentMunsellResult.code, 30, by + 13);
+        const cw = mc.measureText(currentMunsellResult.code).width;
+        mc.fillStyle = 'rgba(255,255,255,0.65)'; mc.font = '9px system-ui, sans-serif';
+        const nx = 30 + cw + 5;
+        if (mw - nx > 30) mc.fillText(' — ' + currentMunsellResult.name, nx, by + 13);
     }
-
-    drawLoupe(clientX, clientY);
 }
 
+// ── Sampling core ──
 function getAveragePixel(cx, cy, radius) {
     const x0 = Math.max(0, cx - radius), y0 = Math.max(0, cy - radius);
-    const x1 = Math.min(canvas.width - 1, cx + radius);
-    const y1 = Math.min(canvas.height - 1, cy + radius);
-    const w  = x1 - x0 + 1, h = y1 - y0 + 1;
+    const x1 = Math.min(sampleCanvas.width  - 1, cx + radius);
+    const y1 = Math.min(sampleCanvas.height - 1, cy + radius);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
     const px = sampleCtx.getImageData(x0, y0, w, h).data;
     let r = 0, g = 0, b = 0;
-    const total = w * h;
     for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i+1]; b += px[i+2]; }
+    const total = w * h;
     return [Math.round(r / total), Math.round(g / total), Math.round(b / total)];
 }
 
-// ===== Sample management =====
-function saveSample() {
-    if (!currentRGB) { alert('Load an image and select a colour by clicking on it first.'); return; }
+function samplePixelAt(imgX, imgY) {
+    const [r, g, b] = getAveragePixel(imgX, imgY, 0);
+    currentRGB = [r, g, b];
+    currentMunsellResult = getNearestChip(r, g, b);
 
-    const rawPct = parseFloat(percentValue.value);
+    magColorSwatch.style.background = `rgb(${r},${g},${b})`;
+    magRgb.textContent = `rgb(${r}, ${g}, ${b})`;
+    if (currentMunsellResult.libError) {
+        magMunsell.textContent = '⚠ Library not loaded';
+    } else {
+        magMunsell.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
+    }
+}
+
+// ── Canvas pointer handling ──
+function getCanvasOffset(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.clientX ?? e.pageX;
+    const clientY = e.clientY ?? e.pageY;
+    return { dx: clientX - rect.left, dy: clientY - rect.top };
+}
+
+function handleSamplingAt(dx, dy) {
+    // dx, dy in canvas display element coords (not CSS-scaled)
+    const rect = canvas.getBoundingClientRect();
+    if (dx < 0 || dy < 0 || dx > rect.width || dy > rect.height) return;
+    const ip = displayToImage(dx, dy);
+    if (ip.x < 0 || ip.x >= sampleCanvas.width || ip.y < 0 || ip.y >= sampleCanvas.height) return;
+    crosshair = { x: ip.x, y: ip.y };
+    samplePixelAt(ip.x, ip.y);
+    redrawCanvas();
+    drawMagnifier();
+}
+
+// Mouse events
+canvas.addEventListener('mousedown', (e) => {
+    if (!baseImage) return;
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+    mouseDragged = false;
+    panLastX = e.clientX;
+    panLastY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!baseImage) return;
+    if (mouseDownPos) {
+        const d = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+        if (d > 4) mouseDragged = true;
+    }
+    if (mouseDragged && viewZoom > 1.01 && mouseDownPos) {
+        // Pan
+        const dx = e.clientX - panLastX;
+        const dy = e.clientY - panLastY;
+        const rect = canvas.getBoundingClientRect();
+        const { srcW, srcH } = getViewport();
+        viewPanX -= dx / rect.width  * srcW;
+        viewPanY -= dy / rect.height * srcH;
+        clampPan();
+        panLastX = e.clientX;
+        panLastY = e.clientY;
+        redrawCanvas();
+        drawMagnifier();
+    } else if (!mouseDownPos) {
+        // Hover: update crosshair continuously
+        const { dx, dy } = getCanvasOffset(e);
+        handleSamplingAt(dx, dy);
+    }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    if (!baseImage) return;
+    if (!mouseDragged) {
+        const { dx, dy } = getCanvasOffset(e);
+        handleSamplingAt(dx, dy);
+    }
+    mouseDownPos = null;
+    mouseDragged = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    mouseDownPos = null;
+    mouseDragged = false;
+});
+
+// Scroll-to-zoom
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    applyZoom(factor, e.clientX, e.clientY);
+}, { passive: false });
+
+// Touch events
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+        lastPinchDist = null;
+        const t = e.touches[0];
+        const { dx, dy } = getCanvasOffset(t);
+        handleSamplingAt(dx, dy);
+    } else if (e.touches.length === 2) {
+        const t1 = e.touches[0], t2 = e.touches[1];
+        lastPinchDist    = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        lastPinchCenterX = (t1.clientX + t2.clientX) / 2;
+        lastPinchCenterY = (t1.clientY + t2.clientY) / 2;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && lastPinchDist === null) {
+        const t = e.touches[0];
+        const { dx, dy } = getCanvasOffset(t);
+        handleSamplingAt(dx, dy);
+    } else if (e.touches.length === 2) {
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const dist    = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const centerX = (t1.clientX + t2.clientX) / 2;
+        const centerY = (t1.clientY + t2.clientY) / 2;
+        if (lastPinchDist !== null) {
+            const scaleFactor = dist / lastPinchDist;
+            // Two-finger pan
+            const rect  = canvas.getBoundingClientRect();
+            const { srcW, srcH } = getViewport();
+            const dx = centerX - lastPinchCenterX;
+            const dy = centerY - lastPinchCenterY;
+            viewPanX -= dx / rect.width  * srcW;
+            viewPanY -= dy / rect.height * srcH;
+            clampPan();
+            applyZoom(scaleFactor, centerX, centerY);
+        }
+        lastPinchDist    = dist;
+        lastPinchCenterX = centerX;
+        lastPinchCenterY = centerY;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) lastPinchDist = null;
+}, { passive: false });
+
+zoomResetBtn.addEventListener('click', resetZoom);
+
+// ── Sample modal ──
+function getTotalPercent() {
+    return samples.reduce((sum, s) => sum + (s.percent || 0), 0);
+}
+
+function getRemainingPercent() {
+    return Math.max(0, 100 - getTotalPercent());
+}
+
+function openSampleModal() {
+    if (!currentRGB) { alert('Load an image and touch it to select a colour first.'); return; }
+
+    // Populate modal preview
+    const [r, g, b] = currentRGB;
+    modalSwatch.style.background = `rgb(${r},${g},${b})`;
+    if (currentMunsellResult && !currentMunsellResult.libError) {
+        modalMunsell.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
+    } else {
+        modalMunsell.textContent = currentMunsellResult?.libError ? '⚠ Library not loaded' : '—';
+    }
+    modalRgb.textContent = `rgb(${r}, ${g}, ${b})`;
+
+    // Smart default %
+    const remaining = getRemainingPercent();
+    percentValue.value = remaining;
+    updatePercentInfo();
+
+    sampleModal.hidden = false;
+    percentValue.focus();
+    percentValue.select();
+}
+
+function closeSampleModal() {
+    sampleModal.hidden = true;
+}
+
+function updatePercentInfo() {
+    const remaining = getRemainingPercent();
+    const entered   = parseFloat(percentValue.value);
+    if (remaining <= 0) {
+        percentInfo.textContent = 'Total coverage is already at 100%.';
+        percentInfo.className   = 'percent-info warn';
+    } else if (!isNaN(entered) && entered > remaining) {
+        percentInfo.textContent = `Exceeds remaining ${remaining}% — reduce entry.`;
+        percentInfo.className   = 'percent-info warn';
+    } else {
+        percentInfo.textContent = `${remaining}% remaining across all samples.`;
+        percentInfo.className   = 'percent-info';
+    }
+}
+
+percentValue.addEventListener('input', updatePercentInfo);
+
+function confirmSaveSample() {
+    if (!currentRGB) return;
+
+    const rawPct  = parseFloat(percentValue.value);
     const percent = isNaN(rawPct) ? 0 : Math.min(100, Math.max(0, Math.round(rawPct)));
-    percentValue.value = percent;
+    const remaining = getRemainingPercent();
+
+    if (percent > remaining) {
+        percentInfo.textContent = `Cannot exceed remaining ${remaining}%. Adjust the value.`;
+        percentInfo.className   = 'percent-info warn';
+        percentValue.focus();
+        return;
+    }
 
     samples.push({
-        id: Date.now(),
-        number: samples.length + 1,
-        x: crosshair.x, y: crosshair.y,
-        type: featureType.value,
+        id:       Date.now(),
+        number:   samples.length + 1,
+        x:        crosshair.x,
+        y:        crosshair.y,
+        type:     featureType.value,
         munsell:  currentMunsellResult?.code  ?? null,
         soilName: currentMunsellResult?.name  ?? null,
         outOfGamut: !currentMunsellResult?.code,
         percent,
-        rgb: `rgb(${currentRGB.join(',')})`
+        rgb:      `rgb(${currentRGB.join(',')})`,
     });
 
     updateTable();
     redrawCanvas();
     saveToStorage();
+    closeSampleModal();
 }
 
+eyedropperBtn.addEventListener('click', openSampleModal);
+modalSaveBtn.addEventListener('click', confirmSaveSample);
+modalCancelBtn.addEventListener('click', closeSampleModal);
+modalCloseBtn.addEventListener('click', closeSampleModal);
+
+// Close modal on overlay click
+sampleModal.addEventListener('click', (e) => {
+    if (e.target === sampleModal) closeSampleModal();
+});
+
+// ── Samples table ──
 function updateTable() {
     const hasRows = samples.length > 0;
     tableEmpty.style.display = hasRows ? 'none' : '';
-
-    // Remove old data rows (not the empty row)
     Array.from(tableBody.querySelectorAll('tr:not(#table-empty)')).forEach(r => r.remove());
 
     samples.forEach((s) => {
@@ -788,29 +997,24 @@ function updateTable() {
         typeTd.textContent = s.type;
 
         const codeTd = document.createElement('td');
-        const swatch = document.createElement('span');
-        swatch.className   = 'swatch';
-        swatch.style.background = s.rgb;
-        codeTd.appendChild(swatch);
-        const codeSpan = document.createElement('span');
-        codeSpan.className   = 'munsell-code';
-        codeSpan.textContent = s.munsell || '—';
-        codeTd.appendChild(codeSpan);
+        const sw = document.createElement('span');
+        sw.className = 'swatch'; sw.style.background = s.rgb;
+        codeTd.appendChild(sw);
+        const cs = document.createElement('span');
+        cs.className = 'munsell-code'; cs.textContent = s.munsell || '—';
+        codeTd.appendChild(cs);
 
         const nameTd = document.createElement('td');
-        nameTd.className   = 'soil-name';
-        nameTd.textContent = s.soilName || '—';
+        nameTd.className = 'soil-name'; nameTd.textContent = s.soilName || '—';
 
         const pctTd = document.createElement('td');
         pctTd.textContent = `${s.percent}%`;
 
         const actTd = document.createElement('td');
-        const btn = document.createElement('button');
-        btn.className = 'delete-btn';
-        btn.textContent = '✕';
-        btn.title = 'Delete sample';
-        btn.addEventListener('click', () => deleteSample(s.id));
-        actTd.appendChild(btn);
+        const del = document.createElement('button');
+        del.className = 'delete-btn'; del.textContent = '✕'; del.title = 'Delete sample';
+        del.addEventListener('click', () => deleteSample(s.id));
+        actTd.appendChild(del);
 
         tr.append(numTd, typeTd, codeTd, nameTd, pctTd, actTd);
         tableBody.appendChild(tr);
@@ -818,35 +1022,32 @@ function updateTable() {
 }
 
 function deleteSample(id) {
-    samples = samples.filter((s) => s.id !== id).map((s, i) => ({ ...s, number: i + 1 }));
+    samples = samples.filter(s => s.id !== id).map((s, i) => ({ ...s, number: i + 1 }));
     updateTable();
     redrawCanvas();
     saveToStorage();
 }
 
-// ===== Export =====
+// ── Export ──
 async function generateReport() {
     if (samples.length === 0) { alert('No samples recorded. Save at least one sample first.'); return; }
-    if (!window.jspdf) { alert('PDF library (jsPDF) failed to load. Check your internet connection.'); return; }
-
+    if (!window.jspdf) { alert('PDF library (jsPDF) failed to load. Check your connection.'); return; }
     try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const sampleId = sampleIdInput.value.trim() || 'Unnamed_Sample';
         const pageH = doc.internal.pageSize.getHeight();
 
-        doc.setFontSize(22);
-        doc.text('Soil Colour Analysis Report', 20, 20);
+        doc.setFontSize(22); doc.text('Soil Colour Analysis Report', 20, 20);
         doc.setFontSize(12);
         doc.text(`Project: ${projectNameInput.value || 'N/A'}`, 20, 35);
-        doc.text(`Site: ${siteNameInput.value || 'N/A'}`,        20, 42);
-        doc.text(`Sample ID: ${sampleId}`,                        20, 49);
+        doc.text(`Site: ${siteNameInput.value || 'N/A'}`, 20, 42);
+        doc.text(`Sample ID: ${sampleId}`, 20, 49);
         doc.text(`Location: ${metadata.lat || 'N/A'}, ${metadata.lng || 'N/A'}`, 20, 56);
-        doc.text(`Date: ${metadata.date || 'N/A'}`,               20, 63);
+        doc.text(`Date: ${metadata.date || 'N/A'}`, 20, 63);
 
         let nextY = 70;
         if (baseImage) {
-            // 150 DPI: 170mm / 25.4 × 150 ≈ 1004 px target
             const TARGET_PX = 1004;
             const scale = TARGET_PX / canvas.width;
             const tmp = document.createElement('canvas');
@@ -860,12 +1061,8 @@ async function generateReport() {
         }
 
         if (nextY + 20 > pageH - 15) { doc.addPage(); nextY = 20; }
-
-        doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
-        doc.text('Samples:', 20, nextY);
-        doc.setFont(undefined, 'normal');
-        nextY += 8;
+        doc.setFont(undefined, 'bold'); doc.text('Samples:', 20, nextY);
+        doc.setFont(undefined, 'normal'); nextY += 8;
 
         for (const s of samples) {
             if (nextY + 7 > pageH - 15) { doc.addPage(); nextY = 20; }
@@ -873,10 +1070,9 @@ async function generateReport() {
             doc.text(`${s.number}. ${s.type}: ${label} (${s.percent}%)`, 20, nextY);
             nextY += 7;
         }
-
         doc.save(`${sampleId}_SoilReport.pdf`);
     } catch (e) {
-        console.error('[pdf] Generation failed:', e);
+        console.error('[pdf]', e);
         alert(`PDF generation failed: ${e.message}`);
     }
 }
@@ -886,8 +1082,8 @@ function exportCSV() {
     const esc = v => `"${String(v).replace(/"/g, '""')}"`;
     const header = ['#', 'Type', 'Munsell Code', 'Soil Colour Name', 'Percent', 'RGB'];
     const rows   = samples.map(s => [s.number, s.type, s.munsell || '', s.soilName || '', s.percent, s.rgb]);
-    const csv    = [header, ...rows].map(r => r.map(esc).join(',')).join('\n');
-    downloadFile(csv, 'text/csv', `${sampleIdInput.value.trim() || 'samples'}.csv`);
+    downloadFile([header, ...rows].map(r => r.map(esc).join(',')).join('\n'), 'text/csv',
+        `${sampleIdInput.value.trim() || 'samples'}.csv`);
 }
 
 function exportJSON() {
@@ -908,3 +1104,21 @@ function downloadFile(content, mimeType, filename) {
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
 }
+
+// ── Resize: keep magnifier canvas width in sync ──
+const resizeObserver = new ResizeObserver(() => {
+    if (baseImage) resizeMagnifierCanvas();
+});
+resizeObserver.observe(canvasWrap);
+
+// ── Expose globals for inline HTML event handlers ──
+window.generateReport  = generateReport;
+window.exportCSV       = exportCSV;
+window.exportJSON      = exportJSON;
+window.clearSession    = clearSession;
+
+// Initial magnifier sizing — run after first layout paint
+requestAnimationFrame(() => {
+    resizeMagnifierCanvas();
+    drawMagnifierPlaceholder();
+});
