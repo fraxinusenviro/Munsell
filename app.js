@@ -1,122 +1,331 @@
-// Munsell library loaded dynamically from raw CJS files.
-let munsell = null;
-let libraryOk = false;
+// Pre-computed CIELAB values for Munsell Soil Color Book chips.
+// Source: munsell@1.1.6 (MRD, D65 via Bradford adaptation), generated at build time.
+// No runtime CDN fetch required — colour matching works fully offline.
+const SOIL_CHIP_LAB = [
+  {code:"10R 2.5/1",name:"Reddish Black",lab:[25.2563,4.6332,3.1927]},
+  {code:"10R 2.5/2",name:"Very Dusky Red",lab:[25.2563,9.2664,6.3854]},
+  {code:"10R 3/1",name:"Dark Reddish Gray",lab:[30.3787,4.6769,3.5756]},
+  {code:"10R 3/2",name:"Dusky Red",lab:[30.3787,9.3539,7.1513]},
+  {code:"10R 3/3",name:"Dusky Red",lab:[30.3787,13.4592,10.5001]},
+  {code:"10R 3/4",name:"Dusky Red",lab:[30.3787,17.5646,13.8488]},
+  {code:"10R 3/6",name:"Dark Red",lab:[30.3787,25.1862,20.5769]},
+  {code:"10R 4/1",name:"Dark Reddish Gray",lab:[40.7365,4.2833,3.4646]},
+  {code:"10R 4/2",name:"Weak Red",lab:[40.7365,8.5666,6.9292]},
+  {code:"10R 4/3",name:"Weak Red",lab:[40.7365,12.6162,10.619]},
+  {code:"10R 4/4",name:"Weak Red",lab:[40.7365,16.6659,14.3087]},
+  {code:"10R 4/6",name:"Red",lab:[40.7365,23.7929,21.5031]},
+  {code:"10R 4/8",name:"Red",lab:[40.7365,31.0871,29.258]},
+  {code:"10R 5/1",name:"Reddish Gray",lab:[51.0037,3.6532,3.2521]},
+  {code:"10R 5/2",name:"Weak Red",lab:[51.0037,7.3063,6.5041]},
+  {code:"10R 5/3",name:"Weak Red",lab:[51.0037,11.1512,10.2744]},
+  {code:"10R 5/4",name:"Weak Red",lab:[51.0037,14.996,14.0447]},
+  {code:"10R 5/6",name:"Red",lab:[51.0037,22.5327,21.8985]},
+  {code:"10R 5/8",name:"Red",lab:[51.0037,29.931,30.0477]},
+  {code:"10R 6/1",name:"Reddish Gray",lab:[61.0465,3.5836,3.3054]},
+  {code:"10R 6/2",name:"Pale Red",lab:[61.0465,7.1672,6.6108]},
+  {code:"10R 6/3",name:"Pale Red",lab:[61.0465,10.8126,10.3809]},
+  {code:"10R 6/4",name:"Pale Red",lab:[61.0465,14.4581,14.151]},
+  {code:"10R 6/6",name:"Light Red",lab:[61.0465,21.2618,21.4013]},
+  {code:"10R 6/8",name:"Light Red",lab:[61.0465,28.2839,29.0633]},
+  {code:"10R 7/1",name:"Light Gray",lab:[70.8609,3.2626,3.105]},
+  {code:"10R 7/2",name:"Pale Red",lab:[70.8609,6.5252,6.21]},
+  {code:"10R 7/3",name:"Pale Red",lab:[70.8609,10.1242,10.0302]},
+  {code:"10R 7/4",name:"Pale Red",lab:[70.8609,13.7232,13.8505]},
+  {code:"10R 7/6",name:"Light Red",lab:[70.8609,20.8793,21.4949]},
+  {code:"10R 7/8",name:"Light Red",lab:[70.8609,28.1921,29.5716]},
+  {code:"10R 8/1",name:"White",lab:[80.5269,2.7256,2.7339]},
+  {code:"10R 8/2",name:"Pinkish White",lab:[80.5269,5.4511,5.4678]},
+  {code:"10R 8/3",name:"Pink",lab:[80.5269,9.6019,9.833]},
+  {code:"10R 8/4",name:"Pink",lab:[80.5269,13.7528,14.1981]},
+  {code:"2.5YR 2.5/1",name:"Black",lab:[25.2563,4.1391,3.8949]},
+  {code:"2.5YR 2.5/2",name:"Very Dusky Red",lab:[25.2563,8.2782,7.7898]},
+  {code:"2.5YR 2.5/3",name:"Dark Reddish Brown",lab:[25.2563,11.9309,11.6776]},
+  {code:"2.5YR 2.5/4",name:"Dark Reddish Brown",lab:[25.2563,15.5836,15.5653]},
+  {code:"2.5YR 3/1",name:"Dark Reddish Gray",lab:[30.3787,4.1474,4.2901]},
+  {code:"2.5YR 3/2",name:"Dusky Red",lab:[30.3787,8.2949,8.5803]},
+  {code:"2.5YR 3/3",name:"Dark Reddish Brown",lab:[30.3787,11.8009,12.6855]},
+  {code:"2.5YR 3/4",name:"Dark Reddish Brown",lab:[30.3787,15.307,16.7908]},
+  {code:"2.5YR 3/6",name:"Dark Red",lab:[30.3787,22.0208,25.833]},
+  {code:"2.5YR 4/1",name:"Dark Reddish Gray",lab:[40.7365,3.8511,4.356]},
+  {code:"2.5YR 4/2",name:"Weak Red",lab:[40.7365,7.7022,8.7119]},
+  {code:"2.5YR 4/3",name:"Reddish Brown",lab:[40.7365,11.2637,13.0842]},
+  {code:"2.5YR 4/4",name:"Reddish Brown",lab:[40.7365,14.8252,17.4565]},
+  {code:"2.5YR 4/6",name:"Red",lab:[40.7365,20.9739,26.0715]},
+  {code:"2.5YR 4/8",name:"Red",lab:[40.7365,26.9913,35.5485]},
+  {code:"2.5YR 5/1",name:"Reddish Gray",lab:[51.0037,3.3536,4.1356]},
+  {code:"2.5YR 5/2",name:"Weak Red",lab:[51.0037,6.7073,8.2712]},
+  {code:"2.5YR 5/3",name:"Reddish Brown",lab:[51.0037,10.0401,12.5164]},
+  {code:"2.5YR 5/4",name:"Reddish Brown",lab:[51.0037,13.3729,16.7617]},
+  {code:"2.5YR 5/6",name:"Red",lab:[51.0037,20.0241,26.1145]},
+  {code:"2.5YR 5/8",name:"Red",lab:[51.0037,26.4785,36.0411]},
+  {code:"2.5YR 6/1",name:"Reddish Gray",lab:[61.0465,3.2668,4.2098]},
+  {code:"2.5YR 6/2",name:"Pale Red",lab:[61.0465,6.5336,8.4197]},
+  {code:"2.5YR 6/3",name:"Light Reddish Brown",lab:[61.0465,9.6268,12.646]},
+  {code:"2.5YR 6/4",name:"Light Reddish Brown",lab:[61.0465,12.72,16.8723]},
+  {code:"2.5YR 6/6",name:"Light Red",lab:[61.0465,19.2274,25.9073]},
+  {code:"2.5YR 6/8",name:"Light Red",lab:[61.0465,25.3122,34.8603]},
+  {code:"2.5YR 7/1",name:"Light Reddish Gray",lab:[70.8609,2.9923,3.9785]},
+  {code:"2.5YR 7/2",name:"Pale Red",lab:[70.8609,5.9847,7.957]},
+  {code:"2.5YR 7/3",name:"Light Reddish Brown",lab:[70.8609,9.1227,12.3725]},
+  {code:"2.5YR 7/4",name:"Light Reddish Brown",lab:[70.8609,12.2608,16.7879]},
+  {code:"2.5YR 7/6",name:"Light Red",lab:[70.8609,18.719,26.0856]},
+  {code:"2.5YR 7/8",name:"Light Red",lab:[70.8609,24.7213,35.1398]},
+  {code:"2.5YR 8/1",name:"White",lab:[80.5269,2.5831,3.6141]},
+  {code:"2.5YR 8/2",name:"Pinkish White",lab:[80.5269,5.1662,7.2283]},
+  {code:"2.5YR 8/3",name:"Pink",lab:[80.5269,8.6741,12.3714]},
+  {code:"2.5YR 8/4",name:"Pink",lab:[80.5269,12.182,17.5146]},
+  {code:"5YR 2.5/1",name:"Black",lab:[25.2563,3.4315,4.6305]},
+  {code:"5YR 2.5/2",name:"Dark Reddish Brown",lab:[25.2563,6.863,9.261]},
+  {code:"5YR 3/1",name:"Very Dark Gray",lab:[30.3787,3.42,4.9979]},
+  {code:"5YR 3/2",name:"Dark Reddish Brown",lab:[30.3787,6.8399,9.9958]},
+  {code:"5YR 3/3",name:"Dark Reddish Brown",lab:[30.3787,9.715,14.6936]},
+  {code:"5YR 3/4",name:"Dark Reddish Brown",lab:[30.3787,12.5901,19.3915]},
+  {code:"5YR 4/1",name:"Dark Gray",lab:[40.7365,3.2384,5.1875]},
+  {code:"5YR 4/2",name:"Dark Reddish Gray",lab:[40.7365,6.4769,10.3749]},
+  {code:"5YR 4/3",name:"Reddish Brown",lab:[40.7365,9.4569,15.5217]},
+  {code:"5YR 4/4",name:"Reddish Brown",lab:[40.7365,12.437,20.6685]},
+  {code:"5YR 4/6",name:"Yellowish Red",lab:[40.7365,17.3954,30.4564]},
+  {code:"5YR 5/1",name:"Gray",lab:[51.0037,2.8418,4.9084]},
+  {code:"5YR 5/2",name:"Reddish Gray",lab:[51.0037,5.6836,9.8168]},
+  {code:"5YR 5/3",name:"Reddish Brown",lab:[51.0037,8.3807,14.8923]},
+  {code:"5YR 5/4",name:"Reddish Brown",lab:[51.0037,11.0778,19.9678]},
+  {code:"5YR 5/6",name:"Yellowish Red",lab:[51.0037,16.6863,30.8613]},
+  {code:"5YR 5/8",name:"Yellowish Red",lab:[51.0037,21.7758,41.9372]},
+  {code:"5YR 6/1",name:"Gray",lab:[61.0465,2.733,5.0016]},
+  {code:"5YR 6/2",name:"Pinkish Gray",lab:[61.0465,5.466,10.0031]},
+  {code:"5YR 6/3",name:"Light Reddish Brown",lab:[61.0465,8.0217,14.9037]},
+  {code:"5YR 6/4",name:"Light Reddish Brown",lab:[61.0465,10.5773,19.8043]},
+  {code:"5YR 6/6",name:"Reddish Yellow",lab:[61.0465,15.8282,30.6036]},
+  {code:"5YR 6/8",name:"Reddish Yellow",lab:[61.0465,20.8662,41.315]},
+  {code:"5YR 7/1",name:"Light Gray",lab:[70.8609,2.5597,4.9132]},
+  {code:"5YR 7/2",name:"Pinkish Gray",lab:[70.8609,5.1193,9.8264]},
+  {code:"5YR 7/3",name:"Pink",lab:[70.8609,7.6143,14.8709]},
+  {code:"5YR 7/4",name:"Pink",lab:[70.8609,10.1092,19.9153]},
+  {code:"5YR 7/6",name:"Reddish Yellow",lab:[70.8609,15.2351,30.5298]},
+  {code:"5YR 7/8",name:"Reddish Yellow",lab:[70.8609,19.923,40.6624]},
+  {code:"5YR 8/1",name:"White",lab:[80.5269,2.252,4.7774]},
+  {code:"5YR 8/2",name:"Pinkish White",lab:[80.5269,4.504,9.5548]},
+  {code:"5YR 8/3",name:"Pink",lab:[80.5269,7.1264,15.0046]},
+  {code:"5YR 8/4",name:"Pink",lab:[80.5269,9.7487,20.4543]},
+  {code:"7.5YR 2.5/1",name:"Black",lab:[25.2563,2.6692,5.2614]},
+  {code:"7.5YR 2.5/2",name:"Very Dark Brown",lab:[25.2563,5.3383,10.5228]},
+  {code:"7.5YR 2.5/3",name:"Very Dark Brown",lab:[25.2563,7.6493,16.0276]},
+  {code:"7.5YR 3/1",name:"Very Dark Gray",lab:[30.3787,2.7063,5.5492]},
+  {code:"7.5YR 3/2",name:"Dark Brown",lab:[30.3787,5.4126,11.0985]},
+  {code:"7.5YR 3/3",name:"Dark Brown",lab:[30.3787,7.6246,16.4573]},
+  {code:"7.5YR 3/4",name:"Dark Brown",lab:[30.3787,9.8367,21.8161]},
+  {code:"7.5YR 4/1",name:"Dark Gray",lab:[40.7365,2.6189,5.8138]},
+  {code:"7.5YR 4/2",name:"Brown",lab:[40.7365,5.2378,11.6276]},
+  {code:"7.5YR 4/3",name:"Brown",lab:[40.7365,7.5706,17.5135]},
+  {code:"7.5YR 4/4",name:"Brown",lab:[40.7365,9.9034,23.3994]},
+  {code:"7.5YR 4/6",name:"Strong Brown",lab:[40.7365,13.7321,34.1101]},
+  {code:"7.5YR 5/1",name:"Gray",lab:[51.0037,2.2642,5.5097]},
+  {code:"7.5YR 5/2",name:"Brown",lab:[51.0037,4.5284,11.0194]},
+  {code:"7.5YR 5/3",name:"Brown",lab:[51.0037,6.7316,16.7431]},
+  {code:"7.5YR 5/4",name:"Brown",lab:[51.0037,8.9348,22.4668]},
+  {code:"7.5YR 5/6",name:"Strong Brown",lab:[51.0037,13.3333,34.6133]},
+  {code:"7.5YR 5/8",name:"Strong Brown",lab:[51.0037,16.9717,46.6154]},
+  {code:"7.5YR 6/1",name:"Gray",lab:[61.0465,2.1492,5.687]},
+  {code:"7.5YR 6/2",name:"Pinkish Gray",lab:[61.0465,4.2984,11.3739]},
+  {code:"7.5YR 6/3",name:"Light Brown",lab:[61.0465,6.345,16.8352]},
+  {code:"7.5YR 6/4",name:"Light Brown",lab:[61.0465,8.3916,22.2965]},
+  {code:"7.5YR 6/6",name:"Reddish Yellow",lab:[61.0465,12.3687,34.0971]},
+  {code:"7.5YR 6/8",name:"Reddish Yellow",lab:[61.0465,16.1541,46.0483]},
+  {code:"7.5YR 7/1",name:"Light Gray",lab:[70.8609,1.9556,5.7073]},
+  {code:"7.5YR 7/2",name:"Pinkish Gray",lab:[70.8609,3.9112,11.4146]},
+  {code:"7.5YR 7/3",name:"Pink",lab:[70.8609,5.899,17.0058]},
+  {code:"7.5YR 7/4",name:"Pink",lab:[70.8609,7.8867,22.597]},
+  {code:"7.5YR 7/6",name:"Reddish Yellow",lab:[70.8609,11.6484,34.2362]},
+  {code:"7.5YR 7/8",name:"Reddish Yellow",lab:[70.8609,15.1737,45.6101]},
+  {code:"7.5YR 8/1",name:"White",lab:[80.5269,1.6846,5.7228]},
+  {code:"7.5YR 8/2",name:"Pinkish White",lab:[80.5269,3.3691,11.4455]},
+  {code:"7.5YR 8/3",name:"Pink",lab:[80.5269,5.2158,17.21]},
+  {code:"7.5YR 8/4",name:"Pink",lab:[80.5269,7.0625,22.9746]},
+  {code:"7.5YR 8/6",name:"Reddish Yellow",lab:[80.5269,11.0578,34.3047]},
+  {code:"10YR 2/1",name:"Black",lab:[20.2356,1.7946,5.4957]},
+  {code:"10YR 2/2",name:"Very Dark Brown",lab:[20.2356,3.5891,10.9913]},
+  {code:"10YR 3/1",name:"Very Dark Gray",lab:[30.3787,1.7203,6.0513]},
+  {code:"10YR 3/2",name:"Very Dark Grayish Brown",lab:[30.3787,3.4406,12.1026]},
+  {code:"10YR 3/3",name:"Dark Brown",lab:[30.3787,4.9978,17.9792]},
+  {code:"10YR 3/4",name:"Dark Yellowish Brown",lab:[30.3787,6.555,23.8558]},
+  {code:"10YR 3/6",name:"Dark Yellowish Brown",lab:[30.3787,9.4337,36.8428]},
+  {code:"10YR 4/1",name:"Dark Gray",lab:[40.7365,1.591,6.5873]},
+  {code:"10YR 4/2",name:"Dark Grayish Brown",lab:[40.7365,3.182,13.1747]},
+  {code:"10YR 4/3",name:"Brown",lab:[40.7365,4.8422,19.4861]},
+  {code:"10YR 4/4",name:"Dark Yellowish Brown",lab:[40.7365,6.5024,25.7976]},
+  {code:"10YR 4/6",name:"Dark Yellowish Brown",lab:[40.7365,9.2398,37.4815]},
+  {code:"10YR 5/1",name:"Gray",lab:[51.0037,1.3802,6.288]},
+  {code:"10YR 5/2",name:"Grayish Brown",lab:[51.0037,2.7603,12.576]},
+  {code:"10YR 5/3",name:"Brown",lab:[51.0037,4.2503,18.9218]},
+  {code:"10YR 5/4",name:"Yellowish Brown",lab:[51.0037,5.7403,25.2675]},
+  {code:"10YR 5/6",name:"Yellowish Brown",lab:[51.0037,8.7585,38.5438]},
+  {code:"10YR 5/8",name:"Yellowish Brown",lab:[51.0037,11.2263,51.0385]},
+  {code:"10YR 6/1",name:"Gray",lab:[61.0465,1.2091,6.4821]},
+  {code:"10YR 6/2",name:"Light Brownish Gray",lab:[61.0465,2.4182,12.9642]},
+  {code:"10YR 6/3",name:"Pale Brown",lab:[61.0465,3.6691,19.0623]},
+  {code:"10YR 6/4",name:"Light Yellowish Brown",lab:[61.0465,4.92,25.1605]},
+  {code:"10YR 6/6",name:"Brownish Yellow",lab:[61.0465,7.8704,38.0692]},
+  {code:"10YR 6/8",name:"Brownish Yellow",lab:[61.0465,10.3764,50.8522]},
+  {code:"10YR 7/1",name:"Light Gray",lab:[70.8609,1.0187,6.5493]},
+  {code:"10YR 7/2",name:"Light Gray",lab:[70.8609,2.0374,13.0986]},
+  {code:"10YR 7/3",name:"Very Pale Brown",lab:[70.8609,3.2288,19.3699]},
+  {code:"10YR 7/4",name:"Very Pale Brown",lab:[70.8609,4.4202,25.6412]},
+  {code:"10YR 7/6",name:"Yellow",lab:[70.8609,6.8894,38.1476]},
+  {code:"10YR 7/8",name:"Yellow",lab:[70.8609,9.3977,50.4161]},
+  {code:"10YR 8/1",name:"White",lab:[80.5269,0.8044,6.676]},
+  {code:"10YR 8/2",name:"Very Pale Brown",lab:[80.5269,1.6088,13.352]},
+  {code:"10YR 8/3",name:"Very Pale Brown",lab:[80.5269,2.6707,19.5356]},
+  {code:"10YR 8/4",name:"Very Pale Brown",lab:[80.5269,3.7325,25.7192]},
+  {code:"10YR 8/6",name:"Yellow",lab:[80.5269,6.1914,38.132]},
+  {code:"10YR 8/8",name:"Yellow",lab:[80.5269,8.681,50.9975]},
+  {code:"2.5Y 2.5/1",name:"Black",lab:[25.2563,0.7318,6.1333]},
+  {code:"2.5Y 3/1",name:"Very Dark Gray",lab:[30.3787,0.678,6.3784]},
+  {code:"2.5Y 3/2",name:"Very Dark Grayish Brown",lab:[30.3787,1.3561,12.7568]},
+  {code:"2.5Y 3/3",name:"Dark Olive Brown",lab:[30.3787,2.2146,19.1238]},
+  {code:"2.5Y 4/1",name:"Dark Gray",lab:[40.7365,0.56,7.0254]},
+  {code:"2.5Y 4/2",name:"Dark Grayish Brown",lab:[40.7365,1.12,14.0509]},
+  {code:"2.5Y 4/3",name:"Olive Brown",lab:[40.7365,1.9771,20.803]},
+  {code:"2.5Y 4/4",name:"Olive Brown",lab:[40.7365,2.8342,27.5552]},
+  {code:"2.5Y 5/1",name:"Gray",lab:[51.0037,0.4501,6.8153]},
+  {code:"2.5Y 5/2",name:"Grayish Brown",lab:[51.0037,0.9002,13.6306]},
+  {code:"2.5Y 5/3",name:"Light Olive Brown",lab:[51.0037,1.5617,20.4938]},
+  {code:"2.5Y 5/4",name:"Light Olive Brown",lab:[51.0037,2.2233,27.357]},
+  {code:"2.5Y 5/6",name:"Light Olive Brown",lab:[51.0037,3.8539,41.6288]},
+  {code:"2.5Y 6/1",name:"Gray",lab:[61.0465,0.1316,7.1092]},
+  {code:"2.5Y 6/2",name:"Light Brownish Gray",lab:[61.0465,0.2632,14.2183]},
+  {code:"2.5Y 6/3",name:"Light Yellowish Brown",lab:[61.0465,0.8229,20.7568]},
+  {code:"2.5Y 6/4",name:"Light Yellowish Brown",lab:[61.0465,1.3827,27.2952]},
+  {code:"2.5Y 6/6",name:"Olive Yellow",lab:[61.0465,2.8813,41.1965]},
+  {code:"2.5Y 6/8",name:"Olive Yellow",lab:[61.0465,4.5646,54.7438]},
+  {code:"2.5Y 7/1",name:"Light Gray",lab:[70.8609,-0.0613,7.2329]},
+  {code:"2.5Y 7/2",name:"Light Gray",lab:[70.8609,-0.1225,14.4657]},
+  {code:"2.5Y 7/3",name:"Pale Yellow",lab:[70.8609,0.5109,21.0273]},
+  {code:"2.5Y 7/4",name:"Pale Yellow",lab:[70.8609,1.1443,27.5888]},
+  {code:"2.5Y 7/6",name:"Yellow",lab:[70.8609,2.4379,40.8107]},
+  {code:"2.5Y 7/8",name:"Yellow",lab:[70.8609,3.6285,53.9465]},
+  {code:"2.5Y 8/1",name:"White",lab:[80.5269,-0.2198,7.4398]},
+  {code:"2.5Y 8/2",name:"Pale Yellow",lab:[80.5269,-0.4396,14.8796]},
+  {code:"2.5Y 8/3",name:"Pale Yellow",lab:[80.5269,-0.1194,21.3206]},
+  {code:"2.5Y 8/4",name:"Pale Yellow",lab:[80.5269,0.2008,27.7615]},
+  {code:"2.5Y 8/6",name:"Yellow",lab:[80.5269,1.3118,41.1407]},
+  {code:"2.5Y 8/8",name:"Yellow",lab:[80.5269,2.7092,54.0975]},
+  {code:"5Y 2.5/1",name:"Black",lab:[25.2563,-0.1616,6.2209]},
+  {code:"5Y 2.5/2",name:"Black",lab:[25.2563,-0.3232,12.4419]},
+  {code:"5Y 3/1",name:"Very Dark Gray",lab:[30.3787,-0.2702,6.4839]},
+  {code:"5Y 3/2",name:"Dark Olive Gray",lab:[30.3787,-0.5404,12.9677]},
+  {code:"5Y 4/1",name:"Dark Gray",lab:[40.7365,-0.4467,7.224]},
+  {code:"5Y 4/2",name:"Olive Gray",lab:[40.7365,-0.8934,14.448]},
+  {code:"5Y 4/3",name:"Olive",lab:[40.7365,-0.8274,21.5993]},
+  {code:"5Y 4/4",name:"Olive",lab:[40.7365,-0.7614,28.7506]},
+  {code:"5Y 5/1",name:"Gray",lab:[51.0037,-0.6838,7.1445]},
+  {code:"5Y 5/2",name:"Olive Gray",lab:[51.0037,-1.3676,14.289]},
+  {code:"5Y 5/3",name:"Olive",lab:[51.0037,-1.4594,21.5527]},
+  {code:"5Y 5/4",name:"Olive",lab:[51.0037,-1.5513,28.8164]},
+  {code:"5Y 5/6",name:"Olive",lab:[51.0037,-1.0548,43.6443]},
+  {code:"5Y 6/1",name:"Gray",lab:[61.0465,-0.8552,7.4435]},
+  {code:"5Y 6/2",name:"Light Olive Gray",lab:[61.0465,-1.7104,14.8869]},
+  {code:"5Y 6/3",name:"Pale Olive",lab:[61.0465,-2.0733,21.8072]},
+  {code:"5Y 6/4",name:"Pale Olive",lab:[61.0465,-2.4362,28.7274]},
+  {code:"5Y 6/6",name:"Olive Yellow",lab:[61.0465,-2.1637,43.3694]},
+  {code:"5Y 6/8",name:"Olive Yellow",lab:[61.0465,-1.819,57.5888]},
+  {code:"5Y 7/1",name:"Light Gray",lab:[70.8609,-0.9528,7.5616]},
+  {code:"5Y 7/2",name:"Light Gray",lab:[70.8609,-1.9055,15.1232]},
+  {code:"5Y 7/3",name:"Pale Yellow",lab:[70.8609,-2.4732,22.1548]},
+  {code:"5Y 7/4",name:"Pale Yellow",lab:[70.8609,-3.0409,29.1865]},
+  {code:"5Y 7/6",name:"Yellow",lab:[70.8609,-3.3044,43.0991]},
+  {code:"5Y 7/8",name:"Yellow",lab:[70.8609,-3.0177,56.6689]},
+  {code:"5Y 8/1",name:"White",lab:[80.5269,-1.135,7.8632]},
+  {code:"5Y 8/2",name:"Pale Yellow",lab:[80.5269,-2.27,15.7264]},
+  {code:"5Y 8/3",name:"Pale Yellow",lab:[80.5269,-3.0416,22.5689]},
+  {code:"5Y 8/4",name:"Pale Yellow",lab:[80.5269,-3.8132,29.4115]},
+  {code:"5Y 8/6",name:"Yellow",lab:[80.5269,-4.3251,43.3197]},
+  {code:"5Y 8/8",name:"Yellow",lab:[80.5269,-4.4263,57.1796]},
+  {code:"10Y 2.5/1",name:"Greenish Black",lab:[25.2563,-1.6914,5.7679]},
+  {code:"10Y 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-1.8538,6.2169]},
+  {code:"10Y 4/1",name:"Dark Greenish Gray",lab:[40.7365,-2.0848,6.9195]},
+  {code:"10Y 5/1",name:"Greenish Gray",lab:[51.0037,-2.1254,6.9838]},
+  {code:"10Y 6/1",name:"Greenish Gray",lab:[61.0465,-2.2717,7.4281]},
+  {code:"10Y 7/1",name:"Light Greenish Gray",lab:[70.8609,-2.3685,7.5902]},
+  {code:"10Y 8/1",name:"Light Greenish Gray",lab:[80.5269,-2.5086,8.0963]},
+  {code:"5GY 2.5/1",name:"Greenish Black",lab:[25.2563,-2.9151,4.4742]},
+  {code:"5GY 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-3.1803,5.0033]},
+  {code:"5GY 4/1",name:"Dark Greenish Gray",lab:[40.7365,-3.4296,5.6441]},
+  {code:"5GY 5/1",name:"Greenish Gray",lab:[51.0037,-3.5281,5.8544]},
+  {code:"5GY 6/1",name:"Greenish Gray",lab:[61.0465,-3.7733,6.4866]},
+  {code:"5GY 7/1",name:"Light Greenish Gray",lab:[70.8609,-3.7647,6.8378]},
+  {code:"5GY 8/1",name:"Light Greenish Gray",lab:[80.5269,-3.858,7.3422]},
+  {code:"10GY 2.5/1",name:"Greenish Black",lab:[25.2563,-3.7932,2.6911]},
+  {code:"10GY 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-4.1689,3.0499]},
+  {code:"10GY 4/1",name:"Dark Greenish Gray",lab:[40.7365,-4.527,3.5809]},
+  {code:"10GY 5/1",name:"Greenish Gray",lab:[51.0037,-4.7785,3.7972]},
+  {code:"10GY 6/1",name:"Greenish Gray",lab:[61.0465,-5.2767,4.2342]},
+  {code:"10GY 7/1",name:"Light Greenish Gray",lab:[70.8609,-5.3826,4.4406]},
+  {code:"10GY 8/1",name:"Light Greenish Gray",lab:[80.5269,-5.7006,4.8135]},
+  {code:"5G 2.5/1",name:"Greenish Black",lab:[25.2563,-4.1386,1.3393]},
+  {code:"5G 2.5/2",name:"Very Dark Grayish Green",lab:[25.2563,-8.2772,2.6786]},
+  {code:"5G 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-4.5256,1.4968]},
+  {code:"5G 3/2",name:"Very Dark Grayish Green",lab:[30.3787,-9.0512,2.9936]},
+  {code:"5G 4/1",name:"Dark Greenish Gray",lab:[40.7365,-4.9683,1.739]},
+  {code:"5G 4/2",name:"Grayish Green",lab:[40.7365,-9.9366,3.4779]},
+  {code:"5G 5/1",name:"Greenish Gray",lab:[51.0037,-5.2313,1.8863]},
+  {code:"5G 5/2",name:"Grayish Green",lab:[51.0037,-10.4625,3.7726]},
+  {code:"5G 6/1",name:"Greenish Gray",lab:[61.0465,-5.6787,2.1058]},
+  {code:"5G 6/2",name:"Pale Green",lab:[61.0465,-11.3573,4.2116]},
+  {code:"5G 7/1",name:"Light Greenish Gray",lab:[70.8609,-5.8538,2.2393]},
+  {code:"5G 7/2",name:"Pale Green",lab:[70.8609,-11.7075,4.4786]},
+  {code:"5G 8/1",name:"Light Greenish Gray",lab:[80.5269,-6.1862,2.4399]},
+  {code:"5G 8/2",name:"Pale Green",lab:[80.5269,-12.3725,4.8798]},
+  {code:"10G 2.5/1",name:"Greenish Black",lab:[25.2563,-4.1862,0.3623]},
+  {code:"10G 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-4.5697,0.4308]},
+  {code:"10G 4/1",name:"Dark Greenish Gray",lab:[40.7365,-4.9827,0.5888]},
+  {code:"10G 5/1",name:"Greenish Gray",lab:[51.0037,-5.1676,0.6632]},
+  {code:"10G 6/1",name:"Greenish Gray",lab:[61.0465,-5.4811,0.7858]},
+  {code:"10G 7/1",name:"Light Greenish Gray",lab:[70.8609,-5.7404,0.9066]},
+  {code:"10G 8/1",name:"Light Greenish Gray",lab:[80.5269,-6.0239,1.0326]},
+  {code:"5BG 2.5/1",name:"Greenish Black",lab:[25.2563,-3.982,-1.0062]},
+  {code:"5BG 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-4.3182,-1.0066]},
+  {code:"5BG 4/1",name:"Dark Greenish Gray",lab:[40.7365,-4.6736,-0.8465]},
+  {code:"5BG 5/1",name:"Greenish Gray",lab:[51.0037,-4.8572,-0.7709]},
+  {code:"5BG 6/1",name:"Greenish Gray",lab:[61.0465,-5.1539,-0.5958]},
+  {code:"5BG 7/1",name:"Light Greenish Gray",lab:[70.8609,-5.3776,-0.4183]},
+  {code:"5BG 8/1",name:"Light Greenish Gray",lab:[80.5269,-5.5519,-0.2659]},
+  {code:"10BG 2.5/1",name:"Greenish Black",lab:[25.2563,-3.503,-2.3158]},
+  {code:"10BG 3/1",name:"Very Dark Greenish Gray",lab:[30.3787,-3.8342,-2.3836]},
+  {code:"10BG 4/1",name:"Dark Greenish Gray",lab:[40.7365,-4.0507,-2.1961]},
+  {code:"10BG 5/1",name:"Greenish Gray",lab:[51.0037,-4.1408,-2.0957]},
+  {code:"10BG 6/1",name:"Greenish Gray",lab:[61.0465,-4.34,-1.9071]},
+  {code:"10BG 7/1",name:"Light Greenish Gray",lab:[70.8609,-4.4237,-1.7855]},
+  {code:"10BG 8/1",name:"Light Greenish Gray",lab:[80.5269,-4.5217,-1.6604]},
+  {code:"5B 2.5/1",name:"Bluish Black",lab:[25.2563,-2.719,-3.3991]},
+  {code:"5B 3/1",name:"Very Dark Bluish Gray",lab:[30.3787,-2.9679,-3.5652]},
+  {code:"5B 4/1",name:"Dark Bluish Gray",lab:[40.7365,-3.0086,-3.2285]},
+  {code:"5B 5/1",name:"Bluish Gray",lab:[51.0037,-2.9668,-3.0067]},
+  {code:"5B 6/1",name:"Bluish Gray",lab:[61.0465,-3.0391,-2.7787]},
+  {code:"5B 7/1",name:"Light Bluish Gray",lab:[70.8609,-3.0178,-2.7002]},
+  {code:"5B 8/1",name:"Light Bluish Gray",lab:[80.5269,-2.9724,-2.4703]},
+  {code:"10B 2.5/1",name:"Bluish Black",lab:[25.2563,-1.2776,-4.378]},
+  {code:"10B 3/1",name:"Very Dark Bluish Gray",lab:[30.3787,-1.4271,-4.5254]},
+  {code:"10B 4/1",name:"Dark Bluish Gray",lab:[40.7365,-1.4582,-3.9257]},
+  {code:"10B 5/1",name:"Bluish Gray",lab:[51.0037,-1.4679,-3.6443]},
+  {code:"10B 6/1",name:"Bluish Gray",lab:[61.0465,-1.5685,-3.2915]},
+  {code:"10B 7/1",name:"Light Bluish Gray",lab:[70.8609,-1.5283,-3.0692]},
+  {code:"10B 8/1",name:"Light Bluish Gray",lab:[80.5269,-1.5812,-2.8365]},
+  {code:"5PB 2.5/1",name:"Bluish Black",lab:[25.2563,0.5822,-4.8592]},
+  {code:"5PB 3/1",name:"Very Dark Bluish Gray",lab:[30.3787,0.515,-4.9848]},
+  {code:"5PB 4/1",name:"Dark Bluish Gray",lab:[40.7365,0.4197,-4.3642]},
+  {code:"5PB 5/1",name:"Bluish Gray",lab:[51.0037,0.2575,-3.8559]},
+  {code:"5PB 6/1",name:"Bluish Gray",lab:[61.0465,0.0459,-3.4536]},
+  {code:"5PB 7/1",name:"Light Bluish Gray",lab:[70.8609,-0.0199,-3.207]},
+  {code:"5PB 8/1",name:"Light Bluish Gray",lab:[80.5269,-0.149,-2.9379]},
+  {code:"N 2.5/",name:"Black",lab:[25.2563,0,0]},
+  {code:"N 3/",name:"Very Dark Gray",lab:[30.3787,0,0]},
+  {code:"N 4/",name:"Dark Gray",lab:[40.7365,0,0]},
+  {code:"N 5/",name:"Gray",lab:[51.0037,0,0]},
+  {code:"N 6/",name:"Gray",lab:[61.0465,0,0]},
+  {code:"N 7/",name:"Light Gray",lab:[70.8609,0,0]},
+  {code:"N 8/",name:"White",lab:[80.5269,0,0]},
+];
 
-const MUNSELL_BASE  = 'https://cdn.jsdelivr.net/npm/munsell@1.1.6/dist/src/';
-const MUNSELL_FILES = ['arithmetic', 'MRD', 'y-to-value-table', 'colorspace', 'convert', 'invert', 'index'];
-
-const SOIL_CHIPS = {
-  '10R 2.5/1':'Reddish Black','10R 2.5/2':'Very Dusky Red',
-  '10R 3/1':'Dark Reddish Gray','10R 3/2':'Dusky Red','10R 3/3':'Dusky Red','10R 3/4':'Dusky Red','10R 3/6':'Dark Red',
-  '10R 4/1':'Dark Reddish Gray','10R 4/2':'Weak Red','10R 4/3':'Weak Red','10R 4/4':'Weak Red','10R 4/6':'Red','10R 4/8':'Red',
-  '10R 5/1':'Reddish Gray','10R 5/2':'Weak Red','10R 5/3':'Weak Red','10R 5/4':'Weak Red','10R 5/6':'Red','10R 5/8':'Red',
-  '10R 6/1':'Reddish Gray','10R 6/2':'Pale Red','10R 6/3':'Pale Red','10R 6/4':'Pale Red','10R 6/6':'Light Red','10R 6/8':'Light Red',
-  '10R 7/1':'Light Gray','10R 7/2':'Pale Red','10R 7/3':'Pale Red','10R 7/4':'Pale Red','10R 7/6':'Light Red','10R 7/8':'Light Red',
-  '10R 8/1':'White','10R 8/2':'Pinkish White','10R 8/3':'Pink','10R 8/4':'Pink',
-  '2.5YR 2.5/1':'Black','2.5YR 2.5/2':'Very Dusky Red','2.5YR 2.5/3':'Dark Reddish Brown','2.5YR 2.5/4':'Dark Reddish Brown',
-  '2.5YR 3/1':'Dark Reddish Gray','2.5YR 3/2':'Dusky Red','2.5YR 3/3':'Dark Reddish Brown','2.5YR 3/4':'Dark Reddish Brown','2.5YR 3/6':'Dark Red',
-  '2.5YR 4/1':'Dark Reddish Gray','2.5YR 4/2':'Weak Red','2.5YR 4/3':'Reddish Brown','2.5YR 4/4':'Reddish Brown','2.5YR 4/6':'Red','2.5YR 4/8':'Red',
-  '2.5YR 5/1':'Reddish Gray','2.5YR 5/2':'Weak Red','2.5YR 5/3':'Reddish Brown','2.5YR 5/4':'Reddish Brown','2.5YR 5/6':'Red','2.5YR 5/8':'Red',
-  '2.5YR 6/1':'Reddish Gray','2.5YR 6/2':'Pale Red','2.5YR 6/3':'Light Reddish Brown','2.5YR 6/4':'Light Reddish Brown','2.5YR 6/6':'Light Red','2.5YR 6/8':'Light Red',
-  '2.5YR 7/1':'Light Reddish Gray','2.5YR 7/2':'Pale Red','2.5YR 7/3':'Light Reddish Brown','2.5YR 7/4':'Light Reddish Brown','2.5YR 7/6':'Light Red','2.5YR 7/8':'Light Red',
-  '2.5YR 8/1':'White','2.5YR 8/2':'Pinkish White','2.5YR 8/3':'Pink','2.5YR 8/4':'Pink',
-  '5YR 2.5/1':'Black','5YR 2.5/2':'Dark Reddish Brown',
-  '5YR 3/1':'Very Dark Gray','5YR 3/2':'Dark Reddish Brown','5YR 3/3':'Dark Reddish Brown','5YR 3/4':'Dark Reddish Brown',
-  '5YR 4/1':'Dark Gray','5YR 4/2':'Dark Reddish Gray','5YR 4/3':'Reddish Brown','5YR 4/4':'Reddish Brown','5YR 4/6':'Yellowish Red',
-  '5YR 5/1':'Gray','5YR 5/2':'Reddish Gray','5YR 5/3':'Reddish Brown','5YR 5/4':'Reddish Brown','5YR 5/6':'Yellowish Red','5YR 5/8':'Yellowish Red',
-  '5YR 6/1':'Gray','5YR 6/2':'Pinkish Gray','5YR 6/3':'Light Reddish Brown','5YR 6/4':'Light Reddish Brown','5YR 6/6':'Reddish Yellow','5YR 6/8':'Reddish Yellow',
-  '5YR 7/1':'Light Gray','5YR 7/2':'Pinkish Gray','5YR 7/3':'Pink','5YR 7/4':'Pink','5YR 7/6':'Reddish Yellow','5YR 7/8':'Reddish Yellow',
-  '5YR 8/1':'White','5YR 8/2':'Pinkish White','5YR 8/3':'Pink','5YR 8/4':'Pink',
-  '7.5YR 2.5/1':'Black','7.5YR 2.5/2':'Very Dark Brown','7.5YR 2.5/3':'Very Dark Brown',
-  '7.5YR 3/1':'Very Dark Gray','7.5YR 3/2':'Dark Brown','7.5YR 3/3':'Dark Brown','7.5YR 3/4':'Dark Brown',
-  '7.5YR 4/1':'Dark Gray','7.5YR 4/2':'Brown','7.5YR 4/3':'Brown','7.5YR 4/4':'Brown','7.5YR 4/6':'Strong Brown',
-  '7.5YR 5/1':'Gray','7.5YR 5/2':'Brown','7.5YR 5/3':'Brown','7.5YR 5/4':'Brown','7.5YR 5/6':'Strong Brown','7.5YR 5/8':'Strong Brown',
-  '7.5YR 6/1':'Gray','7.5YR 6/2':'Pinkish Gray','7.5YR 6/3':'Light Brown','7.5YR 6/4':'Light Brown','7.5YR 6/6':'Reddish Yellow','7.5YR 6/8':'Reddish Yellow',
-  '7.5YR 7/1':'Light Gray','7.5YR 7/2':'Pinkish Gray','7.5YR 7/3':'Pink','7.5YR 7/4':'Pink','7.5YR 7/6':'Reddish Yellow','7.5YR 7/8':'Reddish Yellow',
-  '7.5YR 8/1':'White','7.5YR 8/2':'Pinkish White','7.5YR 8/3':'Pink','7.5YR 8/4':'Pink','7.5YR 8/6':'Reddish Yellow',
-  '10YR 2/1':'Black','10YR 2/2':'Very Dark Brown',
-  '10YR 3/1':'Very Dark Gray','10YR 3/2':'Very Dark Grayish Brown','10YR 3/3':'Dark Brown','10YR 3/4':'Dark Yellowish Brown','10YR 3/6':'Dark Yellowish Brown',
-  '10YR 4/1':'Dark Gray','10YR 4/2':'Dark Grayish Brown','10YR 4/3':'Brown','10YR 4/4':'Dark Yellowish Brown','10YR 4/6':'Dark Yellowish Brown',
-  '10YR 5/1':'Gray','10YR 5/2':'Grayish Brown','10YR 5/3':'Brown','10YR 5/4':'Yellowish Brown','10YR 5/6':'Yellowish Brown','10YR 5/8':'Yellowish Brown',
-  '10YR 6/1':'Gray','10YR 6/2':'Light Brownish Gray','10YR 6/3':'Pale Brown','10YR 6/4':'Light Yellowish Brown','10YR 6/6':'Brownish Yellow','10YR 6/8':'Brownish Yellow',
-  '10YR 7/1':'Light Gray','10YR 7/2':'Light Gray','10YR 7/3':'Very Pale Brown','10YR 7/4':'Very Pale Brown','10YR 7/6':'Yellow','10YR 7/8':'Yellow',
-  '10YR 8/1':'White','10YR 8/2':'Very Pale Brown','10YR 8/3':'Very Pale Brown','10YR 8/4':'Very Pale Brown','10YR 8/6':'Yellow','10YR 8/8':'Yellow',
-  '2.5Y 2.5/1':'Black',
-  '2.5Y 3/1':'Very Dark Gray','2.5Y 3/2':'Very Dark Grayish Brown','2.5Y 3/3':'Dark Olive Brown',
-  '2.5Y 4/1':'Dark Gray','2.5Y 4/2':'Dark Grayish Brown','2.5Y 4/3':'Olive Brown','2.5Y 4/4':'Olive Brown',
-  '2.5Y 5/1':'Gray','2.5Y 5/2':'Grayish Brown','2.5Y 5/3':'Light Olive Brown','2.5Y 5/4':'Light Olive Brown','2.5Y 5/6':'Light Olive Brown',
-  '2.5Y 6/1':'Gray','2.5Y 6/2':'Light Brownish Gray','2.5Y 6/3':'Light Yellowish Brown','2.5Y 6/4':'Light Yellowish Brown','2.5Y 6/6':'Olive Yellow','2.5Y 6/8':'Olive Yellow',
-  '2.5Y 7/1':'Light Gray','2.5Y 7/2':'Light Gray','2.5Y 7/3':'Pale Yellow','2.5Y 7/4':'Pale Yellow','2.5Y 7/6':'Yellow','2.5Y 7/8':'Yellow',
-  '2.5Y 8/1':'White','2.5Y 8/2':'Pale Yellow','2.5Y 8/3':'Pale Yellow','2.5Y 8/4':'Pale Yellow','2.5Y 8/6':'Yellow','2.5Y 8/8':'Yellow',
-  '5Y 2.5/1':'Black','5Y 2.5/2':'Black',
-  '5Y 3/1':'Very Dark Gray','5Y 3/2':'Dark Olive Gray',
-  '5Y 4/1':'Dark Gray','5Y 4/2':'Olive Gray','5Y 4/3':'Olive','5Y 4/4':'Olive',
-  '5Y 5/1':'Gray','5Y 5/2':'Olive Gray','5Y 5/3':'Olive','5Y 5/4':'Olive','5Y 5/6':'Olive',
-  '5Y 6/1':'Gray','5Y 6/2':'Light Olive Gray','5Y 6/3':'Pale Olive','5Y 6/4':'Pale Olive','5Y 6/6':'Olive Yellow','5Y 6/8':'Olive Yellow',
-  '5Y 7/1':'Light Gray','5Y 7/2':'Light Gray','5Y 7/3':'Pale Yellow','5Y 7/4':'Pale Yellow','5Y 7/6':'Yellow','5Y 7/8':'Yellow',
-  '5Y 8/1':'White','5Y 8/2':'Pale Yellow','5Y 8/3':'Pale Yellow','5Y 8/4':'Pale Yellow','5Y 8/6':'Yellow','5Y 8/8':'Yellow',
-  '10Y 2.5/1':'Greenish Black','10Y 3/1':'Very Dark Greenish Gray','10Y 4/1':'Dark Greenish Gray',
-  '10Y 5/1':'Greenish Gray','10Y 6/1':'Greenish Gray','10Y 7/1':'Light Greenish Gray','10Y 8/1':'Light Greenish Gray',
-  '5GY 2.5/1':'Greenish Black','5GY 3/1':'Very Dark Greenish Gray','5GY 4/1':'Dark Greenish Gray',
-  '5GY 5/1':'Greenish Gray','5GY 6/1':'Greenish Gray','5GY 7/1':'Light Greenish Gray','5GY 8/1':'Light Greenish Gray',
-  '10GY 2.5/1':'Greenish Black','10GY 3/1':'Very Dark Greenish Gray','10GY 4/1':'Dark Greenish Gray',
-  '10GY 5/1':'Greenish Gray','10GY 6/1':'Greenish Gray','10GY 7/1':'Light Greenish Gray','10GY 8/1':'Light Greenish Gray',
-  '5G 2.5/1':'Greenish Black','5G 2.5/2':'Very Dark Grayish Green',
-  '5G 3/1':'Very Dark Greenish Gray','5G 3/2':'Very Dark Grayish Green',
-  '5G 4/1':'Dark Greenish Gray','5G 4/2':'Grayish Green',
-  '5G 5/1':'Greenish Gray','5G 5/2':'Grayish Green',
-  '5G 6/1':'Greenish Gray','5G 6/2':'Pale Green',
-  '5G 7/1':'Light Greenish Gray','5G 7/2':'Pale Green',
-  '5G 8/1':'Light Greenish Gray','5G 8/2':'Pale Green',
-  '10G 2.5/1':'Greenish Black','10G 3/1':'Very Dark Greenish Gray','10G 4/1':'Dark Greenish Gray',
-  '10G 5/1':'Greenish Gray','10G 6/1':'Greenish Gray','10G 7/1':'Light Greenish Gray','10G 8/1':'Light Greenish Gray',
-  '5BG 2.5/1':'Greenish Black','5BG 3/1':'Very Dark Greenish Gray','5BG 4/1':'Dark Greenish Gray',
-  '5BG 5/1':'Greenish Gray','5BG 6/1':'Greenish Gray','5BG 7/1':'Light Greenish Gray','5BG 8/1':'Light Greenish Gray',
-  '10BG 2.5/1':'Greenish Black','10BG 3/1':'Very Dark Greenish Gray','10BG 4/1':'Dark Greenish Gray',
-  '10BG 5/1':'Greenish Gray','10BG 6/1':'Greenish Gray','10BG 7/1':'Light Greenish Gray','10BG 8/1':'Light Greenish Gray',
-  '5B 2.5/1':'Bluish Black','5B 3/1':'Very Dark Bluish Gray','5B 4/1':'Dark Bluish Gray',
-  '5B 5/1':'Bluish Gray','5B 6/1':'Bluish Gray','5B 7/1':'Light Bluish Gray','5B 8/1':'Light Bluish Gray',
-  '10B 2.5/1':'Bluish Black','10B 3/1':'Very Dark Bluish Gray','10B 4/1':'Dark Bluish Gray',
-  '10B 5/1':'Bluish Gray','10B 6/1':'Bluish Gray','10B 7/1':'Light Bluish Gray','10B 8/1':'Light Bluish Gray',
-  '5PB 2.5/1':'Bluish Black','5PB 3/1':'Very Dark Bluish Gray','5PB 4/1':'Dark Bluish Gray',
-  '5PB 5/1':'Bluish Gray','5PB 6/1':'Bluish Gray','5PB 7/1':'Light Bluish Gray','5PB 8/1':'Light Bluish Gray',
-  'N 2.5/':'Black','N 3/':'Very Dark Gray','N 4/':'Dark Gray',
-  'N 5/':'Gray','N 6/':'Gray','N 7/':'Light Gray','N 8/':'White',
-};
-
-async function initMunsell() {
-    const modules = {};
-    const CACHE_KEY = '__munsellModuleCache';
-    window[CACHE_KEY] = modules;
-    try {
-        for (const name of MUNSELL_FILES) {
-            const text = await fetch(MUNSELL_BASE + name + '.js').then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status} fetching munsell/${name}.js`);
-                return r.text();
-            });
-            const blob = new Blob([
-                `const exports={};\n` +
-                `const require=d=>window.${CACHE_KEY}[d.replace('./','')];\n` +
-                text + '\nexport default exports;'
-            ], { type: 'text/javascript' });
-            const url = URL.createObjectURL(blob);
-            try { const mod = await import(url); modules[name] = mod.default; }
-            finally { URL.revokeObjectURL(url); }
-        }
-        delete window[CACHE_KEY];
-        munsell = modules['index'];
-        if (typeof munsell.rgb255ToMunsell !== 'function')
-            throw new Error('rgb255ToMunsell missing');
-        libraryOk = true;
-        buildChipLabCache();
-        console.info(`[munsell] OK — ${chipLabCache.length} chips cached`);
-    } catch (e) {
-        delete window[CACHE_KEY];
-        console.error('[munsell] Failed:', e);
-        document.getElementById('lib-warning').style.display = 'flex';
-    }
-}
-initMunsell();
 
 // ── DOM refs ──
 const canvas          = document.getElementById('image-canvas');
@@ -190,7 +399,6 @@ let smoothingEnabled    = false;
 let magnifierZoom       = 4;
 let magnifierLinked     = true;
 let magnifierBelow      = false;
-let chipLabCache        = [];
 let smoothDebounceTimer = null;
 
 // Zoom / pan state (for main image)
@@ -208,17 +416,6 @@ let lastPinchCenterY = 0;
 
 const STORAGE_KEY = 'munsell_session';
 
-// ── Chip Lab cache ──
-function buildChipLabCache() {
-    chipLabCache = [];
-    for (const [code, name] of Object.entries(SOIL_CHIPS)) {
-        try {
-            const lab = munsell.munsellToLab(code);
-            chipLabCache.push({ code, name, lab });
-        } catch { /* skip bad chips */ }
-    }
-}
-
 function rgbToLab(r, g, b) {
     const lin = c => { c /= 255; return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92; };
     const lr = lin(r), lg = lin(g), lb = lin(b);
@@ -231,16 +428,14 @@ function rgbToLab(r, g, b) {
 }
 
 function getNearestChip(r, g, b) {
-    if (!libraryOk || chipLabCache.length === 0) return { code: null, name: null, libError: true };
     const lab = rgbToLab(r, g, b);
     let nearest = null, minDist = Infinity;
-    for (const chip of chipLabCache) {
+    for (const chip of SOIL_CHIP_LAB) {
         const dL = lab[0] - chip.lab[0], da = lab[1] - chip.lab[1], db = lab[2] - chip.lab[2];
         const dist = dL * dL + da * da + db * db;
         if (dist < minDist) { minDist = dist; nearest = chip; }
     }
-    return nearest ? { code: nearest.code, name: nearest.name, libError: false }
-                   : { code: null, name: null, libError: true };
+    return nearest ? { code: nearest.code, name: nearest.name } : { code: null, name: null };
 }
 
 // ── Gaussian blur ──
@@ -711,7 +906,7 @@ function drawMagnifier() {
     mc.fillStyle = 'rgba(255,255,255,0.9)'; mc.fill();
 
     // Munsell badge at bottom
-    if (currentRGB && currentMunsellResult && !currentMunsellResult.libError) {
+    if (currentRGB && currentMunsellResult?.code) {
         const [r, g, b] = currentRGB;
         const badgeH = 26, by = mh - badgeH;
         mc.fillStyle = 'rgba(0,0,0,0.7)';
@@ -750,11 +945,9 @@ function samplePixelAt(imgX, imgY) {
 
     magColorSwatch.style.background = `rgb(${r},${g},${b})`;
     magRgb.textContent = `rgb(${r}, ${g}, ${b})`;
-    if (currentMunsellResult.libError) {
-        magMunsell.textContent = '⚠ Library not loaded';
-    } else {
-        magMunsell.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
-    }
+    magMunsell.textContent = currentMunsellResult.code
+        ? `${currentMunsellResult.code} — ${currentMunsellResult.name}`
+        : '—';
 }
 
 // ── Canvas pointer handling ──
@@ -900,11 +1093,9 @@ function openSampleModal() {
     // Populate modal preview
     const [r, g, b] = currentRGB;
     modalSwatch.style.background = `rgb(${r},${g},${b})`;
-    if (currentMunsellResult && !currentMunsellResult.libError) {
-        modalMunsell.textContent = `${currentMunsellResult.code} — ${currentMunsellResult.name}`;
-    } else {
-        modalMunsell.textContent = currentMunsellResult?.libError ? '⚠ Library not loaded' : '—';
-    }
+    modalMunsell.textContent = currentMunsellResult?.code
+        ? `${currentMunsellResult.code} — ${currentMunsellResult.name}`
+        : '—';
     modalRgb.textContent = `rgb(${r}, ${g}, ${b})`;
 
     // Smart default %
